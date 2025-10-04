@@ -105,6 +105,17 @@ stages:
     - checkout: self
       persistCredentials: true
 
+    - task: Maven@3
+      displayName: 'Build all microservices with Maven'
+      inputs:
+        mavenPomFile: 'pom.xml'
+        goals: 'clean package -DskipTests'
+        options: '-T 1C'   # parallel builds per core
+        javaHomeOption: 'JDKVersion'
+        jdkVersionOption: '1.17'
+        mavenOptions: '-Xmx1024m'
+
+
     - task: AzureCLI@2
       displayName: 'Install Docker, verify az, login ACR and push images'
       inputs:
