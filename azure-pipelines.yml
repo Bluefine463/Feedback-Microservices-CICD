@@ -212,6 +212,9 @@ stages:
               PG_USER=$(TF_PG_ADMIN)
               PG_PASS=$(TF_PG_PASS)
               
+              EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
+              echo "Eureka Server URL will be: $EUREKA_URL"
+              
               # read mapping file
               MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
               if [ ! -f "$MAPFILE" ]; then
@@ -244,15 +247,39 @@ stages:
                   --docker-custom-image-name "$IMAGE" \
                   --docker-registry-server-url "https://${ACR_LOGIN}"
               
-                # Set application settings for Spring Boot datasource
+#                # Set application settings for Spring Boot datasource
+#                JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
+#                echo "Setting SPRING_DATASOURCE_* for $APP_NAME"
+#                az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings \
+#                  SPRING_DATASOURCE_URL="$JDBC_URL" \
+#                  SPRING_DATASOURCE_USERNAME="$PG_USER" \
+#                  SPRING_DATASOURCE_PASSWORD="$PG_PASS"
+
                 JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
-                echo "Setting SPRING_DATASOURCE_* for $APP_NAME"
-                az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings \
-                  SPRING_DATASOURCE_URL="$JDBC_URL" \
-                  SPRING_DATASOURCE_USERNAME="$PG_USER" \
-                  SPRING_DATASOURCE_PASSWORD="$PG_PASS"
+                SETTINGS=(
+                  "SPRING_DATASOURCE_URL=$JDBC_URL"
+                  "SPRING_DATASOURCE_USERNAME=$PG_USER"
+                  "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
+                )
+                            
+                if [ "$svc" == "eureka-server" ]; then
+                  echo "Configuring $APP_NAME as the Eureka Server..."
+                  SETTINGS+=(
+                    "EUREKA_CLIENT_REGISTERWITHEUREKA=false"
+                    "EUREKA_CLIENT_FETCHREGISTRY=false"
+                  )
+                else
+                  echo "Configuring $APP_NAME to register with Eureka at $EUREKA_URL"
+                  SETTINGS+=(
+                    "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=$EUREKA_URL"
+                  )
+                fi
+                            
+                echo "Applying all application settings for $APP_NAME..."
+                az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings "${SETTINGS[@]}"
               
-                # Restart web app to pick up new container image and settings
+              
+              
                 az webapp restart --name "$APP_NAME" --resource-group "$RG"
               
                 echo "Deployed container to $APP_NAME"
