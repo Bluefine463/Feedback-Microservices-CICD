@@ -2,7 +2,6 @@ trigger:
 - main
 
 variables:
-
   azureServiceConnection: 'AzureServiceConnection'
   terraformVersion: '1.6.0'
   location: 'centralindia'
@@ -72,8 +71,8 @@ stages:
           echo "RG: $RG"
           echo "ACR: $ACR_NAME ($ACR_LOGIN)"
           echo "PG: $PG_FQDN / DB: $PG_DB"
-         
-         
+          
+          
           echo "##vso[task.setvariable variable=TF_PREFIX;isOutput=true]$PREFIX"
           echo "##vso[task.setvariable variable=TF_RG;isOutput=true]$RG"
           echo "##vso[task.setvariable variable=TF_ACR_NAME;isOutput=true]$ACR_NAME"
@@ -92,14 +91,14 @@ stages:
     pool:
       vmImage: 'ubuntu-latest'
     variables:
-      TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
-      TF_RG: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG'] ]
-      TF_ACR_NAME: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_NAME'] ]
-      TF_ACR_LOGIN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN'] ]
-      TF_PG_FQDN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN'] ]
-      TF_PG_DB: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB'] ]
-      TF_PG_ADMIN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN'] ]
-      TF_PG_PASS: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS'] ]
+      TF_PREFIX: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX']]
+      TF_RG: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG']]
+      TF_ACR_NAME: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_NAME']]
+      TF_ACR_LOGIN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN']]
+      TF_PG_FQDN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN']]
+      TF_PG_DB: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB']]
+      TF_PG_ADMIN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN']]
+      TF_PG_PASS: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS']]
 
     steps:
     - checkout: self
@@ -114,7 +113,6 @@ stages:
         javaHomeOption: 'JDKVersion'
         jdkVersionOption: '1.17'
         mavenOptions: '-Xmx1024m'
-
 
     - task: AzureCLI@2
       displayName: 'Install Docker, verify az, login ACR and push images'
@@ -132,7 +130,7 @@ stages:
           
           echo "Checking docker..."
           docker --version || ( echo "Docker not available on agent"; exit 1 )
-
+          
           echo "Logging into ACR using az acr login..."
           az acr login --name "$ACR_NAME"
           echo "Logged into ACR."
@@ -142,20 +140,20 @@ stages:
             svc_trimmed="$(echo "$svc" | tr -d '[:space:]')"
             IMAGE="${ACR_LOGIN}/${PREFIX}-${svc_trimmed}:${TAG}"
             echo "Building Docker image for ${svc_trimmed} -> ${IMAGE}"
-
+          
             # Ensure Dockerfile exists
             if [ ! -f "services/${svc_trimmed}/Dockerfile" ]; then
               echo "ERROR: services/${svc_trimmed}/Dockerfile not found. Create a Dockerfile that builds the service container."
               exit 1
             fi
-
+          
             # Build image 
             docker build --pull --no-cache -t "${IMAGE}" "services/${svc_trimmed}" \
               || { echo "docker build failed for ${svc_trimmed}"; exit 1; }
-
+          
             echo "Pushing image ${IMAGE}..."
             docker push "${IMAGE}" || { echo "docker push failed for ${IMAGE}"; exit 1; }
-
+          
             # emit a file with mapping so Deploy stage can read exact image names
             echo "${svc_trimmed}=${IMAGE}" >> $(Build.ArtifactStagingDirectory)/image-mapping.txt
           done
@@ -180,13 +178,13 @@ stages:
       pool:
         vmImage: 'ubuntu-latest'
       variables:
-        TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
-        TF_RG:     $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG'] ]
-        TF_ACR_LOGIN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN'] ]
-        TF_PG_FQDN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN'] ]
-        TF_PG_DB: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB'] ]
-        TF_PG_ADMIN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN'] ]
-        TF_PG_PASS: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS'] ]
+        TF_PREFIX: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX']]
+        TF_RG:     $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG']]
+        TF_ACR_LOGIN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN']]
+        TF_PG_FQDN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN']]
+        TF_PG_DB: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB']]
+        TF_PG_ADMIN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN']]
+        TF_PG_PASS: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS']]
 
       steps:
         - task: DownloadPipelineArtifact@2
@@ -221,13 +219,13 @@ stages:
                 echo "ERROR: image mapping file not found at $MAPFILE"
                 exit 1
               fi
-              
+                            
               declare -A images
               while IFS='=' read -r svc image; do
                 svc_trimmed="$(echo $svc | tr -d '[:space:]')"
                 images["$svc_trimmed"]="$image"
               done < "$MAPFILE"
-              
+                            
               # For each service, set the container image and configure app settings
               for svc in api-gateway eureka-server feedback-service user-service; do
                 IMAGE="${images[$svc]}"
@@ -235,7 +233,7 @@ stages:
                   echo "ERROR: image for $svc not found in mapping file"
                   exit 1
                 fi
-              
+ 
                 APP_NAME="${PREFIX}-${svc}"
                 echo "Setting container for $APP_NAME -> $IMAGE"
               
@@ -246,7 +244,6 @@ stages:
                   --resource-group "$RG" \
                   --docker-custom-image-name "$IMAGE" \
                   --docker-registry-server-url "https://${ACR_LOGIN}"
-              
 #                # Set application settings for Spring Boot datasource
 #                JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
 #                echo "Setting SPRING_DATASOURCE_* for $APP_NAME"
@@ -260,7 +257,6 @@ stages:
                   "SPRING_DATASOURCE_USERNAME=$PG_USER"
                   "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
                 )
-                            
                 if [ "$svc" == "eureka-server" ]; then
                   echo "Configuring $APP_NAME as the Eureka Server..."
                   SETTINGS+=(
@@ -276,11 +272,7 @@ stages:
                             
                 echo "Applying all application settings for $APP_NAME..."
                 az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings "${SETTINGS[@]}"
-              
-              
-              
                 az webapp restart --name "$APP_NAME" --resource-group "$RG"
-              
                 echo "Deployed container to $APP_NAME"
               done
 
