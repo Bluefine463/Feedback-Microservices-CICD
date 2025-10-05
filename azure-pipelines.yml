@@ -1,5 +1,5 @@
 trigger:
-- main
+  - main
 
 variables:
   azureServiceConnection: 'AzureServiceConnection'
@@ -9,279 +9,243 @@ variables:
   docker_tag: '$(Build.BuildId)'
 
 stages:
-- stage: Infra
-  displayName: 'Infrastructure (Terraform)'
-  jobs:
-  - job: Terraform
-    displayName: 'Terraform init/plan/apply/outputs'
-    pool:
-      vmImage: 'ubuntu-latest'
-    steps:
-    - checkout: self
-      persistCredentials: true
+  - stage: Infra
+    displayName: 'Infrastructure (Terraform)'
+    jobs:
+      - job: Terraform
+        displayName: 'Terraform init/plan/apply/outputs'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - checkout: self
+            persistCredentials: true
 
-    - task: Bash@3 #install terraform on the fresh virtual machine
-      displayName: 'Install Terraform (explicit)'
-      inputs:
-        targetType: 'inline'
-        script: |
-          set -euo pipefail
-          echo "Installing unzip, jq..."
-          sudo apt-get update -y
-          sudo apt-get install -y unzip jq
-          TFV=${terraformVersion}
-          echo "Downloading terraform $(terraformVersion)}..."
-          cd /tmp
-          wget -q "https://releases.hashicorp.com/terraform/${TFV}/terraform_${TFV}_linux_amd64.zip" -O terraform.zip
-          unzip -o terraform.zip
-          sudo mv terraform /usr/local/bin/terraform
-          terraform --version
+          - task: Bash@3
+            displayName: 'Install Terraform (explicit)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -euo pipefail
+                echo "Installing unzip, jq..."
+                sudo apt-get update -y
+                sudo apt-get install -y unzip jq
+                TFV=$(terraformVersion)
+                echo "Downloading terraform ${TFV}..."
+                cd /tmp
+                wget -q "https://releases.hashicorp.com/terraform/${TFV}/terraform_${TFV}_linux_amd64.zip" -O terraform.zip
+                unzip -o terraform.zip
+                sudo mv terraform /usr/local/bin/terraform
+                terraform --version
 
-    - task: AzureCLI@2
-      name: setOutputs
-      displayName: 'Terraform Explicit Commands'
-      inputs:
-        azureSubscription: $(azureServiceConnection)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          echo "Switch to infra folder..."
-          cd infrastructure
-          
-          echo "terraform init"
-          terraform init -input=false -upgrade
-          
-          NAME_PREFIX="build${BUILD_BUILDID}"
-          echo "Using name_prefix=${NAME_PREFIX}"
-          
-          echo "terraform plan -out=tfplan -var='location=${location}' -var='name_prefix=${NAME_PREFIX}' -var='microservices=${microservice_list}'"
-          terraform plan -input=false -out=tfplan -var="location=${location}" -var="name_prefix=${NAME_PREFIX}" -var="microservices=${microservice_list}"
-          
-          PREFIX=$(terraform output -raw name_prefix)
-          RG=$(terraform output -raw resource_group_name)
-          ACR_NAME=$(terraform output -raw acr_name)
-          ACR_LOGIN=$(terraform output -raw acr_login_server)
-          PG_FQDN=$(terraform output -raw postgres_fqdn)
-          PG_DB=$(terraform output -raw postgres_database_name)
-          PG_ADMIN=$(terraform output -raw postgres_admin_username)
-          PG_PASS=$(terraform output -raw postgres_admin_password)
-          
-          echo "Prefix: $PREFIX"
-          echo "RG: $RG"
-          echo "ACR: $ACR_NAME ($ACR_LOGIN)"
-          echo "PG: $PG_FQDN / DB: $PG_DB"
-          
-          
-          echo "##vso[task.setvariable variable=TF_PREFIX;isOutput=true]$PREFIX"
-          echo "##vso[task.setvariable variable=TF_RG;isOutput=true]$RG"
-          echo "##vso[task.setvariable variable=TF_ACR_NAME;isOutput=true]$ACR_NAME"
-          echo "##vso[task.setvariable variable=TF_ACR_LOGIN;isOutput=true]$ACR_LOGIN"
-          echo "##vso[task.setvariable variable=TF_PG_FQDN;isOutput=true]$PG_FQDN"
-          echo "##vso[task.setvariable variable=TF_PG_DB;isOutput=true]$PG_DB"
-          echo "##vso[task.setvariable variable=TF_PG_ADMIN;isOutput=true]$PG_ADMIN"
-          echo "##vso[task.setvariable variable=TF_PG_PASS;isOutput=true;issecret=true]$PG_PASS"
-          
-- stage: Build
-  displayName: 'Build images (Docker) & Push to ACR'
-  dependsOn: Infra
-  jobs:
-  - job: BuildAndPush
+          - task: AzureCLI@2
+            name: setOutputs
+            displayName: 'Terraform Explicit Commands'
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                echo "Switch to infra folder..."
+                cd infrastructure
+                
+                echo "terraform init"
+                terraform init -input=false -upgrade
+                
+                NAME_PREFIX="build${BUILD_BUILDID}"
+                echo "Using name_prefix=${NAME_PREFIX}"
+                
+                echo "terraform plan -out=tfplan -var='location=${location}' -var='name_prefix=${NAME_PREFIX}' -var='microservices=${microservice_list}'"
+                terraform plan -input=false -out=tfplan -var="location=${location}" -var="name_prefix=${NAME_PREFIX}" -var="microservices=${microservice_list}"
+                
+                echo "terraform apply"
+                terraform apply -input=false tfplan
+                
+                PREFIX=$(terraform output -raw name_prefix)
+                RG=$(terraform output -raw resource_group_name)
+                ACR_NAME=$(terraform output -raw acr_name)
+                ACR_LOGIN=$(terraform output -raw acr_login_server)
+                PG_FQDN=$(terraform output -raw postgres_fqdn)
+                PG_DB=$(terraform output -raw postgres_database_name)
+                PG_ADMIN=$(terraform output -raw postgres_admin_username)
+                PG_PASS=$(terraform output -raw postgres_admin_password)
+                
+                echo "Prefix: $PREFIX"
+                echo "RG: $RG"
+                echo "ACR: $ACR_NAME ($ACR_LOGIN)"
+                echo "PG: $PG_FQDN / DB: $PG_DB"
+                
+                echo "##vso[task.setvariable variable=TF_PREFIX;isOutput=true]$PREFIX"
+                echo "##vso[task.setvariable variable=TF_RG;isOutput=true]$RG"
+                echo "##vso[task.setvariable variable=TF_ACR_NAME;isOutput=true]$ACR_NAME"
+                echo "##vso[task.setvariable variable=TF_ACR_LOGIN;isOutput=true]$ACR_LOGIN"
+                echo "##vso[task.setvariable variable=TF_PG_FQDN;isOutput=true]$PG_FQDN"
+                echo "##vso[task.setvariable variable=TF_PG_DB;isOutput=true]$PG_DB"
+                echo "##vso[task.setvariable variable=TF_PG_ADMIN;isOutput=true]$PG_ADMIN"
+                echo "##vso[task.setvariable variable=TF_PG_PASS;isOutput=true;issecret=true]$PG_PASS"
+
+  - stage: Build
     displayName: 'Build images (Docker) & Push to ACR'
-    pool:
-      vmImage: 'ubuntu-latest'
-    variables:
-      TF_PREFIX: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX']]
-      TF_RG: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG']]
-      TF_ACR_NAME: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_NAME']]
-      TF_ACR_LOGIN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN']]
-      TF_PG_FQDN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN']]
-      TF_PG_DB: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB']]
-      TF_PG_ADMIN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN']]
-      TF_PG_PASS: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS']]
+    dependsOn: Infra
+    jobs:
+      - job: BuildAndPush
+        displayName: 'Build images (Docker) & Push to ACR'
+        pool:
+          vmImage: 'ubuntu-latest'
+        variables:
+          TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
+          TF_RG: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG'] ]
+          TF_ACR_NAME: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_NAME'] ]
+          TF_ACR_LOGIN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN'] ]
+          TF_PG_FQDN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN'] ]
+          TF_PG_DB: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB'] ]
+          TF_PG_ADMIN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN'] ]
+          TF_PG_PASS: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS'] ]
 
-    steps:
-    - checkout: self
-      persistCredentials: true
+        steps:
+          - checkout: self
+            persistCredentials: true
 
-    - task: Maven@3
-      displayName: 'Build all microservices with Maven'
-      inputs:
-        mavenPomFile: 'pom.xml'
-        goals: 'clean package -DskipTests'
-        options: '-T 1C'   # parallel builds per core
-        javaHomeOption: 'JDKVersion'
-        jdkVersionOption: '1.17'
-        mavenOptions: '-Xmx1024m'
+          - task: Maven@3
+            displayName: 'Build all microservices with Maven'
+            inputs:
+              mavenPomFile: 'pom.xml'
+              goals: 'clean package -DskipTests'
+              options: '-T 1C'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.17'
+              mavenOptions: '-Xmx1024m'
 
-    - task: AzureCLI@2
-      displayName: 'Install Docker, verify az, login ACR and push images'
-      inputs:
-        azureSubscription: $(azureServiceConnection)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -euo pipefail
-          PREFIX=$(TF_PREFIX)
-          ACR_NAME=$(TF_ACR_NAME)
-          ACR_LOGIN=$(TF_ACR_LOGIN)
-          TAG=${{ variables.docker_tag }}
-          echo "Prefix: $PREFIX  ACR: $ACR_NAME ($ACR_LOGIN)  Tag: $TAG"
-          
-          echo "Checking docker..."
-          docker --version || ( echo "Docker not available on agent"; exit 1 )
-          
-          echo "Logging into ACR using az acr login..."
-          az acr login --name "$ACR_NAME"
-          echo "Logged into ACR."
-          
-          IFS=',' read -r -a services <<< "$(microservice_list)"
-          for svc in "${services[@]}"; do
-            svc_trimmed="$(echo "$svc" | tr -d '[:space:]')"
-            IMAGE="${ACR_LOGIN}/${PREFIX}-${svc_trimmed}:${TAG}"
-            echo "Building Docker image for ${svc_trimmed} -> ${IMAGE}"
-          
-            # Ensure Dockerfile exists
-            if [ ! -f "services/${svc_trimmed}/Dockerfile" ]; then
-              echo "ERROR: services/${svc_trimmed}/Dockerfile not found. Create a Dockerfile that builds the service container."
-              exit 1
-            fi
-          
-            # Build image 
-            docker build --pull --no-cache -t "${IMAGE}" "services/${svc_trimmed}" \
-              || { echo "docker build failed for ${svc_trimmed}"; exit 1; }
-          
-            echo "Pushing image ${IMAGE}..."
-            docker push "${IMAGE}" || { echo "docker push failed for ${IMAGE}"; exit 1; }
-          
-            # emit a file with mapping so Deploy stage can read exact image names
-            echo "${svc_trimmed}=${IMAGE}" >> $(Build.ArtifactStagingDirectory)/image-mapping.txt
-          done
-          
-          mkdir -p $(Build.ArtifactStagingDirectory)
-          echo "Publishing image mapping file..."  
-          
-          
-    - task: PublishPipelineArtifact@1
-      displayName: 'Publish image mapping'
-      inputs:
-        targetPath: '$(Build.ArtifactStagingDirectory)'
-        artifact: 'image-mapping'
-        publishLocation: 'pipeline'
+          - task: AzureCLI@2
+            displayName: 'Login to ACR and push images'
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                PREFIX=$(TF_PREFIX)
+                ACR_NAME=$(TF_ACR_NAME)
+                ACR_LOGIN=$(TF_ACR_LOGIN)
+                TAG=$(docker_tag)
+                echo "Prefix: $PREFIX  ACR: $ACR_NAME ($ACR_LOGIN)  Tag: $TAG"
+                
+                az acr login --name "$ACR_NAME"
+                
+                IFS=',' read -r -a services <<< "$(microservice_list)"
+                for svc in "${services[@]}"; do
+                  svc_trimmed="$(echo "$svc" | tr -d '[:space:]')"
+                  IMAGE="${ACR_LOGIN}/${PREFIX}-${svc_trimmed}:${TAG}"
+                  echo "Building and pushing Docker image for ${svc_trimmed} -> ${IMAGE}"
+                
+                  docker build --pull -t "${IMAGE}" "services/${svc_trimmed}"
+                  docker push "${IMAGE}"
+                
+                  echo "${svc_trimmed}=${IMAGE}" >> $(Build.ArtifactStagingDirectory)/image-mapping.txt
+                done
+                
+                cat $(Build.ArtifactStagingDirectory)/image-mapping.txt
 
-- stage: Deploy
-  displayName: 'Deploy containers to WebApps and configure appsettings'
-  dependsOn: Build
-  jobs:
-    - job: DeployJob
-      displayName: 'Set container images and env vars on WebApps'
-      pool:
-        vmImage: 'ubuntu-latest'
-      variables:
-        TF_PREFIX: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX']]
-        TF_RG:     $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG']]
-        TF_ACR_LOGIN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN']]
-        TF_PG_FQDN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN']]
-        TF_PG_DB: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB']]
-        TF_PG_ADMIN: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN']]
-        TF_PG_PASS: $[stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS']]
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish image mapping'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)'
+              artifact: 'image-mapping'
+              publishLocation: 'pipeline'
 
-      steps:
-        - task: DownloadPipelineArtifact@2
-          displayName: 'Download image mapping'
-          inputs:
-            buildType: 'current'
-            artifact: 'image-mapping'
-            targetPath: '$(Pipeline.Workspace)/image-mapping'
+  - stage: Deploy
+    displayName: 'Deploy containers to WebApps'
+    dependsOn: Build
+    jobs:
+      - job: DeployJob
+        displayName: 'Set container images and env vars on WebApps'
+        pool:
+          vmImage: 'ubuntu-latest'
+        variables:
+          TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
+          TF_RG: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG'] ]
+          TF_ACR_LOGIN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN'] ]
+          TF_PG_FQDN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN'] ]
+          TF_PG_DB: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB'] ]
+          TF_PG_ADMIN: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN'] ]
+          TF_PG_PASS: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS'] ]
 
-        - task: AzureCLI@2
-          displayName: 'Update webapps to use pushed container images and configure app settings'
-          inputs:
-            azureSubscription: $(azureServiceConnection)
-            scriptType: bash
-            scriptLocation: inlineScript
-            inlineScript: |
-              set -euo pipefail
-              PREFIX=$(TF_PREFIX)
-              RG=$(TF_RG)
-              ACR_LOGIN=$(TF_ACR_LOGIN)
-              PG_HOST=$(TF_PG_FQDN)
-              PG_DB=$(TF_PG_DB)
-              PG_USER=$(TF_PG_ADMIN)
-              PG_PASS=$(TF_PG_PASS)
-              
-              EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
-              echo "Eureka Server URL will be: $EUREKA_URL"
-              
-              # read mapping file
-              MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
-              if [ ! -f "$MAPFILE" ]; then
-                echo "ERROR: image mapping file not found at $MAPFILE"
-                exit 1
-              fi
-                            
-              declare -A images
-              while IFS='=' read -r svc image; do
-                svc_trimmed="$(echo $svc | tr -d '[:space:]')"
-                images["$svc_trimmed"]="$image"
-              done < "$MAPFILE"
-                            
-              # For each service, set the container image and configure app settings
-              for svc in api-gateway eureka-server feedback-service user-service; do
-                IMAGE="${images[$svc]}"
-                if [ -z "$IMAGE" ]; then
-                  echo "ERROR: image for $svc not found in mapping file"
-                  exit 1
-                fi
- 
-                APP_NAME="${PREFIX}-${svc}"
-                echo "Setting container for $APP_NAME -> $IMAGE"
-              
-                # Use az webapp config container set to update docker image
-                # Because webapps have system-assigned identity with AcrPull role, they can pull private images.
-                az webapp config container set \
-                  --name "$APP_NAME" \
-                  --resource-group "$RG" \
-                  --docker-custom-image-name "$IMAGE" \
-                  --docker-registry-server-url "https://${ACR_LOGIN}"
-#                # Set application settings for Spring Boot datasource
-#                JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
-#                echo "Setting SPRING_DATASOURCE_* for $APP_NAME"
-#                az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings \
-#                  SPRING_DATASOURCE_URL="$JDBC_URL" \
-#                  SPRING_DATASOURCE_USERNAME="$PG_USER" \
-#                  SPRING_DATASOURCE_PASSWORD="$PG_PASS"
-                JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
-                SETTINGS=(
-                  "SPRING_DATASOURCE_URL=$JDBC_URL"
-                  "SPRING_DATASOURCE_USERNAME=$PG_USER"
-                  "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
-                )
-                if [ "$svc" == "eureka-server" ]; then
-                  echo "Configuring $APP_NAME as the Eureka Server..."
-                  SETTINGS+=(
-                    "EUREKA_CLIENT_REGISTERWITHEUREKA=false"
-                    "EUREKA_CLIENT_FETCHREGISTRY=false"
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download image mapping'
+            inputs:
+              buildType: 'current'
+              artifact: 'image-mapping'
+              targetPath: '$(Pipeline.Workspace)/image-mapping'
+
+          - task: AzureCLI@2
+            displayName: 'Update webapps with container images and app settings'
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                PREFIX=$(TF_PREFIX)
+                RG=$(TF_RG)
+                ACR_LOGIN=$(TF_ACR_LOGIN)
+                PG_HOST=$(TF_PG_FQDN)
+                PG_DB=$(TF_PG_DB)
+                PG_USER=$(TF_PG_ADMIN)
+                PG_PASS=$(TF_PG_PASS)
+                
+                EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
+                echo "Eureka Server URL will be: $EUREKA_URL"
+                
+                MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
+                
+                declare -A images
+                while IFS='=' read -r svc image; do
+                  images["$svc"]="$image"
+                done < "$MAPFILE"
+                
+                for svc in api-gateway eureka-server feedback-service user-service; do
+                  IMAGE="${images[$svc]}"
+                  APP_NAME="${PREFIX}-${svc}"
+                  echo "Setting container for $APP_NAME -> $IMAGE"
+                
+                  az webapp config container set \
+                    --name "$APP_NAME" \
+                    --resource-group "$RG" \
+                    --docker-custom-image-name "$IMAGE" \
+                    --docker-registry-server-url "https://${ACR_LOGIN}"
+                
+                  JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
+                  SETTINGS=(
+                    "SPRING_DATASOURCE_URL=$JDBC_URL"
+                    "SPRING_DATASOURCE_USERNAME=$PG_USER"
+                    "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
                   )
-                else
-                  echo "Configuring $APP_NAME to register with Eureka at $EUREKA_URL"
-                  SETTINGS+=(
-                    "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=$EUREKA_URL"
-                  )
-                fi
-                            
-                echo "Applying all application settings for $APP_NAME..."
-                az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings "${SETTINGS[@]}"
-                az webapp restart --name "$APP_NAME" --resource-group "$RG"
-                echo "Deployed container to $APP_NAME"
-              done
+                
+                  if [ "$svc" == "eureka-server" ]; then
+                    SETTINGS+=(
+                      "EUREKA_CLIENT_REGISTERWITHEUREKA=false"
+                      "EUREKA_CLIENT_FETCHREGISTRY=false"
+                    )
+                  else
+                    SETTINGS+=(
+                      "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=$EUREKA_URL"
+                    )
+                  fi
+                
+                  echo "Applying all application settings for $APP_NAME..."
+                  az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings "${SETTINGS[@]}"
+                
+                  az webapp restart --name "$APP_NAME" --resource-group "$RG"
+                  echo "Deployed container to $APP_NAME"
+                done
 
-        - task: Bash@3
-          displayName: 'List deployed web app URLs (sanity)'
-          inputs:
-            targetType: 'inline'
-            script: |
-              PREFIX=$(TF_PREFIX)
-              for svc in api-gateway eureka-server feedback-service user-service; do
-                echo "https://${PREFIX}-${svc}.azurewebsites.net"
-              done
+          - task: Bash@3
+            displayName: 'List deployed web app URLs'
+            inputs:
+              targetType: 'inline'
+              script: |
+                PREFIX=$(TF_PREFIX)
+                for svc in api-gateway eureka-server feedback-service user-service; do
+                  echo "https://${PREFIX}-${svc}.azurewebsites.net"
+                done
