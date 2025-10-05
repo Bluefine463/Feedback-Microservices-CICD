@@ -254,7 +254,6 @@ stages:
 #                  SPRING_DATASOURCE_URL="$JDBC_URL" \
 #                  SPRING_DATASOURCE_USERNAME="$PG_USER" \
 #                  SPRING_DATASOURCE_PASSWORD="$PG_PASS"
-
                 JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
                 SETTINGS=(
                   "SPRING_DATASOURCE_URL=$JDBC_URL"
@@ -294,16 +293,3 @@ stages:
               for svc in api-gateway eureka-server feedback-service user-service; do
                 echo "https://${PREFIX}-${svc}.azurewebsites.net"
               done
-          
-
-        
-
-          
-          
-          
-
-
-
-
-
-
