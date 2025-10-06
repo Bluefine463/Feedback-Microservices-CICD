@@ -39,7 +39,7 @@ resource "azurerm_linux_web_app" "apps" {
 
   site_config {
     always_on        = true
-    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${local.prefix}-${each.key}:latest"
+    #linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${local.prefix}-${each.key}:latest"
   }
 }
 
