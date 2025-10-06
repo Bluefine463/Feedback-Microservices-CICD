@@ -55,8 +55,8 @@ stages:
                 NAME_PREFIX="build${BUILD_BUILDID}"
                 echo "Using name_prefix=${NAME_PREFIX}"
                 
-                echo "terraform plan -out=tfplan -var='location=${location}' -var='name_prefix=${NAME_PREFIX}' -var='microservices=${microservice_list}'"
-                terraform plan -input=false -out=tfplan -var="location=${location}" -var="name_prefix=${NAME_PREFIX}" -var="microservices=${microservice_list}"
+                echo "terraform plan -out=tfplan -var='location=$(location)' -var='name_prefix=${NAME_PREFIX}' -var='microservices=$(microservice_list)'"
+                terraform plan -input=false -out=tfplan -var="location=$(location)" -var="name_prefix=${NAME_PREFIX}" -var="microservices=$(microservice_list)"
                 
                 echo "terraform apply"
                 terraform apply -input=false tfplan
