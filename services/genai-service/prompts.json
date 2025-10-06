@@ -1,0 +1,5 @@
+{
+  "daily_summary": "You are an assistant analyzing student mess feedback for {date}.\n\nFeedbacks:\n{feedbacks}\n\nTasks:\n1) Give a one-sentence summary of overall sentiment.\n2) Return top 3 complaints as a JSON array under 'complaints'.\n3) Return top 3 praises as a JSON array under 'praises'.\n4) Suggest up to 3 actionable improvements.\n\nReturn the result as a JSON object with keys: summary, sentiment, complaints, praises, suggestions.",
+  "quick_sentiment": "Analyze the following student feedbacks for {date} and give a brief sentiment (Positive/Neutral/Negative) and a 1-line rationale.\n\n{feedbacks}",
+  "menu_topics": "Extract and list recurring topics (single words or short phrases) mentioned in the feedbacks for {date}. Provide counts for top 5 topics.\n\n{feedbacks}"
+}
