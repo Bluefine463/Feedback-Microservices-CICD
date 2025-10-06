@@ -80,7 +80,8 @@ resource "azurerm_role_assignment" "acr_pull" {
 
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
-  principal_id         = azurerm_linux_web_app.apps[each.key].identity.principal_id
+  principal_id         = each.value.identity[0].principal_id
+  #principal_id         = azurerm_linux_web_app.apps[each.key].identity.principal_id
   # use a deterministic name so re-runs are stable
   name = uuidv5("e4085f1d-0f2c-4809-88b4-528742b7864c","${azurerm_linux_web_app.apps[each.key].id}-${azurerm_container_registry.acr.id}")
 }
