@@ -13,7 +13,7 @@ variable "name_prefix" {
 variable "microservices" {
   description = "List of names for webapp suffixes"
   type        = list(string)
-  default = ["api-gateway","eureka-server","feedback-service","user-service"]
+  default = ["api-gateway","eureka-server","feedback-service","user-service","genai-service"]
 }
 
 variable "postgres_admin" {
