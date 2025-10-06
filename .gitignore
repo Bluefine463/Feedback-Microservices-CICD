@@ -36,3 +36,27 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+# Local Terraform directories
+/.terraform/
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude sensitive variable files
+*.tfvars
+*.tfvars.json
+
+# Exclude override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# NOTE: We do NOT ignore .terraform.lock.hcl. This file should be
+# committed to ensure everyone uses the same provider versions.
