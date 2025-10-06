@@ -1,11 +1,3 @@
-terraform {
-  required_providers {
-    ad = {
-      source  = "hashicorp/ad"
-      version = "0.5.0"
-    }
-  }
-}
 resource "random_pet" "prefix" {
   length              = 2
   prefix              = var.name_prefix

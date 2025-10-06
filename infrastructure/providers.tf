@@ -10,6 +10,10 @@ terraform {
       source = "hashicorp/random"
       version = ">= 3.0"
     }
+    ad = {
+      source  = "hashicorp/ad"
+      version = "0.5.0"
+    }
   }
 }
 
