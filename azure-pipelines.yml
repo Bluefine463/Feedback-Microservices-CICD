@@ -60,7 +60,7 @@ stages:
                 echo "Formatted microservice list for Terraform: ${TF_LIST_VAR}"
                 
                 echo "terraform plan -out=tfplan -var='location=$(location)' -var='name_prefix=${NAME_PREFIX}' -var='microservices=${TF_LIST_VAR}'"
-                terraform plan -input=false -out=tfplan -var="location=$(location)" -var="name_prefix=${NAME_PREFIX}" -var="microservices=${TF_LIST_VAR}"
+                terraform plan -input=false -out=tfplan -var="location=$(location)" -var="name_prefix=${NAME_PREFIX}" -var="microservices=${TF_LIST_VAR} -var="build_id=$(Build.BuildId)"
                 
                 echo "terraform apply"
                 terraform apply -input=false tfplan

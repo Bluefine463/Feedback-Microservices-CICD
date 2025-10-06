@@ -3,7 +3,10 @@ variable "location" {
   type        = string
   default     = "centralindia"
 }
-
+variable "build_id" {
+  description = "The unique ID of the pipeline build"
+  type        = string
+}
 variable "name_prefix" {
   description = "A prefix used for all resources in this example"
   type        = string

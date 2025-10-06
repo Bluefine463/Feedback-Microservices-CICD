@@ -1,15 +1,15 @@
-resource "random_pet" "prefix" {
-  length = 2
-  prefix = var.name_prefix
+locals {
+  # Create a predictable prefix, e.g., "build35cheker"
+  prefix = "build${var.build_id}${var.name_prefix}"
 }
 
 resource "azurerm_resource_group" "rg" {
-  name     = "${random_pet.prefix.id}-rg"
+  name     = "${local.prefix}-rg"
   location = var.location
 }
 
 resource "azurerm_service_plan" "asp" {
-  name                = "${random_pet.prefix.id}-asp"
+  name                = "${local.prefix}-asp"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   os_type             = "Linux"
@@ -17,8 +17,7 @@ resource "azurerm_service_plan" "asp" {
 }
 
 resource "azurerm_container_registry" "acr" {
-  # FIX: Removed hyphens from the name using the replace() function.
-  name                = replace("${random_pet.prefix.id}acr", "-", "")
+  name                = replace(local.prefix, "-", "")
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   sku                 = "Basic"
@@ -28,7 +27,7 @@ resource "azurerm_container_registry" "acr" {
 resource "azurerm_linux_web_app" "apps" {
   for_each = toset(var.microservices)
 
-  name                = "${random_pet.prefix.id}-${each.value}"
+  name                = "${local.prefix}-${each.value}"
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   service_plan_id     = azurerm_service_plan.asp.id
@@ -38,25 +37,9 @@ resource "azurerm_linux_web_app" "apps" {
     type = "SystemAssigned"
   }
 
-  # FIX: Add a minimal site_config block to satisfy the provider's requirement.
-  # 'always_on' does not depend on other resources, so it won't cause the cycle error.
   site_config {
-    always_on = true
-  }
-}
-
-# FIX: Added this new resource to configure the web apps after they are created.
-
-# --- ADD THIS NEW RESOURCE BLOCK ---
-# This resource configures the 'production' slot, which is the main web app itself.
-resource "azurerm_linux_web_app_slot" "apps_production_slot_config" {
-  for_each = azurerm_linux_web_app.apps
-
-  name           = "production"
-  app_service_id = each.value.id
-
-  site_config {
-    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${random_pet.prefix.id}-${each.key}:latest"
+    always_on        = true
+    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${local.prefix}-${each.key}:latest"
   }
 }
 
@@ -66,27 +49,22 @@ resource "random_password" "pg_pass" {
 }
 
 resource "azurerm_postgresql_flexible_server" "postgres" {
-  name                   = "${random_pet.prefix.id}-pg"
+  name                   = "${local.prefix}-pg"
   resource_group_name    = azurerm_resource_group.rg.name
   location               = azurerm_resource_group.rg.location
   version                = var.postgres_version
   administrator_login    = var.postgres_admin
   administrator_password = random_password.pg_pass.result
-
-  # FIX: Corrected the SKU name to a valid one for PostgreSQL Flexible Server.
-  sku_name            = "B_Standard_B1ms"
-  storage_mb          = 32768
-  backup_retention_days = 7
-  zone                = "1"
-
+  sku_name               = "B_Standard_B1ms"
+  storage_mb             = 32768
+  backup_retention_days  = 7
+  zone                   = "1"
   public_network_access_enabled = true
 }
 
 resource "azurerm_postgresql_flexible_server_database" "app_db" {
-  name      = "${random_pet.prefix.id}_db"
+  name      = "${local.prefix}_db"
   server_id = azurerm_postgresql_flexible_server.postgres.id
-
-  # FIX: Corrected collation name to be lowercase utf8.
   collation = "en_US.utf8"
   charset   = "UTF8"
 }
@@ -96,10 +74,6 @@ resource "azurerm_role_assignment" "acr_pull" {
 
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
-
-  # FIX: Correctly accessed the principal_id from the first element of the identity list.
-  principal_id = each.value.identity[0].principal_id
-
-  # FIX: Replaced non-existent 'guid' function with 'uuidv5' for a stable, deterministic ID.
-  name = uuidv5("e4085f1d-0f2c-4809-88b4-528742b7864c", "${each.value.id}-${azurerm_container_registry.acr.id}")
+  principal_id         = each.value.identity[0].principal_id
+  name                 = uuidv5("e4085f1d-0f2c-4809-88b4-528742b7864c", "${each.value.id}-${azurerm_container_registry.acr.id}")
 }

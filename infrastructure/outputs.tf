@@ -1,6 +1,6 @@
 output "name_prefix" {
-  description   = "Random prefix used for resource names"
-  value         = random_pet.prefix.id
+  description = "Prefix used for all resource names"
+  value       = local.prefix # Changed from random_pet.prefix.id
 }
 
 output "resource_group_name" {
@@ -34,6 +34,8 @@ output "postgres_admin_password" {
   value         = azurerm_postgresql_flexible_server.postgres.administrator_password
   sensitive = true
 }
+
+
 
 output "postgres_database_name" {
   description   = "The name of the PostgreSQL database"
