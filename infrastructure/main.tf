@@ -60,7 +60,7 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
   administrator_login = var.postgres_admin
   administrator_password = random_password.pg_pass.result
 
-  sku_name            = "B_Standard_B1s"
+  sku_name            = "B_Standard_B1ms"
   storage_mb          = 32768
   backup_retention_days = 7
   zone                = "1"
@@ -82,5 +82,5 @@ resource "azurerm_role_assignment" "acr_pull" {
   role_definition_name = "AcrPull"
   principal_id         = azurerm_linux_web_app.apps[each.key].identity.principal_id
   # use a deterministic name so re-runs are stable
-  name = lower(guid("${azurerm_linux_web_app.apps[each.key].id}-${azurerm_container_registry.acr.id}"))
+  name = uuidv5("e4085f1d-0f2c-4809-88b4-528742b7864c","${azurerm_linux_web_app.apps[each.key].id}-${azurerm_container_registry.acr.id}")
 }
