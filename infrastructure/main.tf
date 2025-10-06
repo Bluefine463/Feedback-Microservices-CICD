@@ -46,13 +46,16 @@ resource "azurerm_linux_web_app" "apps" {
 }
 
 # FIX: Added this new resource to configure the web apps after they are created.
-resource "azurerm_app_service_configuration" "apps_config" {
+
+# --- ADD THIS NEW RESOURCE BLOCK ---
+# This resource configures the 'production' slot, which is the main web app itself.
+resource "azurerm_linux_web_app_slot" "apps_production_slot_config" {
   for_each = azurerm_linux_web_app.apps
 
+  name           = "production"
   app_service_id = each.value.id
 
   site_config {
-    # The problematic dependency, linux_fx_version, remains here.
     linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${random_pet.prefix.id}-${each.key}:latest"
   }
 }
