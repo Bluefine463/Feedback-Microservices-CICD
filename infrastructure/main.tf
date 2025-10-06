@@ -71,7 +71,7 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
 resource "azurerm_postgresql_flexible_server_database" "app_db" {
   name                = "${random_pet.prefix.id}_db"
   server_id           = azurerm_postgresql_flexible_server.postgres.id
-  collation           = "en_US.UTF8"
+  collation           = "en_US.utf8"
   charset             = "UTF8"
 }
 
