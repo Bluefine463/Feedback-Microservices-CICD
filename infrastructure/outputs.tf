@@ -32,6 +32,7 @@ output "postgres_admin_username" {
 output "postgres_admin_password" {
   description   = "The password for the PostgreSQL Admin user"
   value         = azurerm_postgresql_flexible_server.postgres.administrator_password
+  sensitive = true
 }
 
 output "postgres_database_name" {

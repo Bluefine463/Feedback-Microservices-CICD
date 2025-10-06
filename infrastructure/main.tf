@@ -41,7 +41,7 @@ resource "azurerm_linux_web_app" "apps" {
     # always_on         = true
     # java_version      = "17"
     # java_container    = "JAVA"
-    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${random_pet.prefix}-${each.value}:latest"
+    linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${random_pet.prefix.id}-${each.value}:latest"
     always_on = true
 
   }
