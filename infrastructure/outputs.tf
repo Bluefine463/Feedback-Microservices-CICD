@@ -54,5 +54,5 @@ output "webapp_names" {
 }
 
 output "webapp_image_patterns" {
-  value = { for k, v in azurerm_linux_web_app.apps : k => "${azurerm_container_registry.acr.login_server}/${random_pet.prefix.id}-${k}:<TAG>" }
+  value = { for k, v in azurerm_linux_web_app.apps : k => "${azurerm_container_registry.acr.login_server}/${local.prefix}-${k}:<TAG>" }
 }
