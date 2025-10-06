@@ -17,7 +17,7 @@ resource "azurerm_service_plan" "asp" {
 }
 
 resource "azurerm_container_registry" "acr" {
-name                = "${random_pet.prefix.id}-acr"
+name                = replace("${random_pet.prefix.id}acr", "-", "")
 resource_group_name = azurerm_resource_group.rg.name
 location            = azurerm_resource_group.rg.location
 sku                 = "Basic"
