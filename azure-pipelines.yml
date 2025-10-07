@@ -119,7 +119,7 @@ stages:
 #              javaHomeOption: 'JDKVersion'
 #              jdkVersionOption: '1.17'
 #              mavenOptions: '-Xmx1024m'
-#          # --- ADD THIS NEW SCRIPT-BASED TASK ----
+#          # --- ADD THIS NEW SCRIPT-BASED TASK -----
           - task: Bash@3
             displayName: 'Build all Java microservices with Maven'
             inputs:
