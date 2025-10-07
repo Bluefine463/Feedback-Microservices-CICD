@@ -150,9 +150,9 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
-                PREFIX=$(TF_PREFIX)
-                ACR_NAME=$(TF_ACR_NAME)
-                ACR_LOGIN=$(TF_ACR_LOGIN)
+                PREFIX=${TF_PREFIX}
+                ACR_NAME=${TF_ACR_NAME}
+                ACR_LOGIN=${TF_ACR_LOGIN}
                 TAG=$(docker_tag)
                 echo "Prefix: $PREFIX  ACR: $ACR_NAME ($ACR_LOGIN)  Tag: $TAG"
                 
@@ -220,15 +220,15 @@ stages:
                 scriptLocation: inlineScript
                 inlineScript: |
                   set -euo pipefail
-                  PREFIX=$(TF_PREFIX)
-                  RG=$(TF_RG)
-                  ACR_LOGIN=$(TF_ACR_LOGIN)
-                  PG_HOST=$(TF_PG_FQDN)
-                  PG_DB=$(TF_PG_DB)
-                  PG_USER=$(TF_PG_ADMIN)
-                  PG_PASS=$(TF_PG_PASS)
-                  JWT_SECRET=$(JWT-SECRET)
-                  GEMINI_API_KEY=$(GEMINI-API-KEY)
+                  PREFIX=${TF_PREFIX}
+                  RG=${TF_RG}
+                  ACR_LOGIN=${TF_ACR_LOGIN}
+                  PG_HOST=${TF_PG_FQDN}
+                  PG_DB=${TF_PG_DB}
+                  PG_USER=${TF_PG_ADMIN}
+                  PG_PASS=${TF_PG_PASS}
+                  JWT_SECRET=${JWT-SECRET}
+                  GEMINI_API_KEY=${GEMINI-API-KEY}
 
                   EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
                   echo "Eureka Server URL will be: $EUREKA_URL"
@@ -331,7 +331,7 @@ stages:
               inputs:
                 targetType: 'inline'
                 script: |
-                  PREFIX=$(TF_PREFIX)
+                  PREFIX=${TF_PREFIX}
                   # Use the pipeline variable for the loop to make it more maintainable
                   IFS=',' read -r -a services <<< "$(microservice_list)"
                   for svc in "${services[@]}"; do
