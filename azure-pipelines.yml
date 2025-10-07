@@ -219,10 +219,10 @@ stages:
             - task: AzureCLI@2
               displayName: 'Update webapps with container images and app settings'
               inputs:
-                  azureSubscription: $(azureSubscription)
-                  scriptType: bash
-                  scriptLocation: inlineScript
-                  inlineScript: |
+                azureSubscription: $(azureSubscription)
+                scriptType: bash
+                scriptLocation: inlineScript
+                inlineScript: |
                     set -euo pipefail
                     PREFIX=${TF_PREFIX}
                     RG=${TF_RG}
