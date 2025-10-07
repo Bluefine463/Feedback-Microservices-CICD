@@ -110,16 +110,38 @@ stages:
           - checkout: self
             persistCredentials: true
 
-          - task: Maven@3
-            displayName: 'Build all microservices with Maven'
+#          - task: Maven@3
+#            displayName: 'Build all microservices with Maven'
+#            inputs:
+#              mavenPomFile: 'pom.xml'
+#              goals: 'clean package -DskipTests'
+#              options: '-T 1C'
+#              javaHomeOption: 'JDKVersion'
+#              jdkVersionOption: '1.17'
+#              mavenOptions: '-Xmx1024m'
+#          # --- ADD THIS NEW SCRIPT-BASED TASK ---
+          - task: Bash@3
+            displayName: 'Build all Java microservices with Maven'
             inputs:
-              mavenPomFile: 'pom.xml'
-              goals: 'clean package -DskipTests'
-              options: '-T 1C'
-              javaHomeOption: 'JDKVersion'
-              jdkVersionOption: '1.17'
-              mavenOptions: '-Xmx1024m'
+              targetType: 'inline'
+              script: |
+                set -euo pipefail
 
+                # Define the list of Java services to build
+                JAVA_SERVICES="api-gateway,eureka-server,feedback-service,user-service"
+
+                echo "Building Java services: $JAVA_SERVICES"
+
+                IFS=',' read -r -a services <<< "$JAVA_SERVICES"
+                for svc in "${services[@]}"; do
+                  SVC_PATH="services/$svc"
+                  echo "----------------------------------------------------"
+                  echo "Building Maven project in: ${SVC_PATH}"
+                  echo "----------------------------------------------------"
+
+                  # Run Maven on the pom.xml within each service's directory
+                  mvn -f "${SVC_PATH}/pom.xml" clean package -DskipTests
+                done
           - task: AzureCLI@2
             displayName: 'Login to ACR and push images'
             inputs:
