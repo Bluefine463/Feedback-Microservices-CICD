@@ -275,7 +275,7 @@ stages:
                   for ((i=1;i<=40;i++)); do
                     STATUS=$(curl --max-time 20 -s -o /dev/null -w "%{http_code}" "$FULL_URL")
                     if [ "$STATUS" == "200" ]; then
-                      echo "✅ ${APP_NAME} healthy!"
+                      echo "✅ ${APP_NAME} healthy!!"
                       break
                     fi
                     echo "Waiting for ${APP_NAME} (${i}/40)..."
