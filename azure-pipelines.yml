@@ -195,6 +195,8 @@ stages:
               value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
             - name: TF_RG
               value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG'] ]
+            - name: TF_ACR_NAME
+              value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_NAME'] ]
             - name: TF_ACR_LOGIN
               value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN'] ]
             - name: TF_PG_FQDN
@@ -217,117 +219,127 @@ stages:
             - task: AzureCLI@2
               displayName: 'Update webapps with container images and app settings'
               inputs:
-                azureSubscription: $(azureServiceConnection)
-                scriptType: bash
-                scriptLocation: inlineScript
-                inlineScript: |
-                  set -euo pipefail
-                  PREFIX=${TF_PREFIX}
-                  RG=${TF_RG}
-                  ACR_LOGIN=${TF_ACR_LOGIN}
-                  PG_HOST=${TF_PG_FQDN}
-                  PG_DB=${TF_PG_DB}
-                  PG_USER=${TF_PG_ADMIN}
-                  PG_PASS=${TF_PG_PASS}
-                  JWT_SECRET=${JWT-SECRET}
-                  GEMINI_API_KEY=${GEMINI-API-KEY}
-
-                  EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
-                  echo "Eureka Server URL will be: $EUREKA_URL"
-
-                  MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
-
-                  declare -A images
-                  while IFS='=' read -r svc image; do
-                    images["$svc"]="$image"
-                  done < "$MAPFILE"
-
-                  # Use the pipeline variable for the loop to make it more maintainable
-                  IFS=',' read -r -a services <<< "$(microservice_list)"
-                  for svc in "${services[@]}"; do
-                    IMAGE="${images[$svc]}"
-                    APP_NAME="${PREFIX}-${svc}"
-                    echo "Setting container for $APP_NAME -> $IMAGE"
-
-                    az webapp config container set \
-                      --name "$APP_NAME" \
-                      --resource-group "$RG" \
-                      --docker-custom-image-name "$IMAGE" \
-                      --docker-registry-server-url "https://${ACR_LOGIN}"
-
-                    # Health Check Logic
-                    echo "Health checking ${APP_NAME}..."
-                    URL="https://${APP_NAME}.azurewebsites.net"
-                    HEALTH_ENDPOINT=""
-
-                    if [ "$svc" == "genai-service" ]; then
-                      HEALTH_ENDPOINT="/health"
-                    else
-                      HEALTH_ENDPOINT="/actuator/health"
-                    fi
-
-                    FULL_URL="${URL}${HEALTH_ENDPOINT}"
-                    MAX_ATTEMPTS=20
-                    SLEEP_SECONDS=10
-                    SUCCESS=false
-
-                    echo "Polling health endpoint: ${FULL_URL}"
-
-                    for (( i=1; i<=$MAX_ATTEMPTS; i++ )); do
-                      STATUS_CODE=$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" "${FULL_URL}")
-                      if [ "$STATUS_CODE" == "200" ]; then
-                        echo "Health check successful for ${APP_NAME} (Attempt ${i}/${MAX_ATTEMPTS})."
-                        SUCCESS=true
-                        break
+                  azureSubscription: $(azureSubscription)
+                  scriptType: bash
+                  scriptLocation: inlineScript
+                  inlineScript: |
+                    set -euo pipefail
+                    PREFIX=${TF_PREFIX}
+                    RG=${TF_RG}
+                    ACR_NAME=${TF_ACR_NAME}
+                    ACR_LOGIN=${TF_ACR_LOGIN}
+                    PG_HOST=${TF_PG_FQDN}
+                    PG_DB=${TF_PG_DB}
+                    PG_USER=${TF_PG_ADMIN}
+                    PG_PASS=${TF_PG_PASS}
+                    JWT_SECRET=${JWT-SECRET}
+                    GEMINI_API_KEY=${GEMINI-API-KEY}
+                    
+                    echo "Fetching ACR credentials..."
+                    ACR_USER=$(az acr credential show -n "$ACR_NAME" --query "username" -o tsv)
+                    ACR_PASS=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
+                    
+                    EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
+                    echo "Eureka Server URL will be: $EUREKA_URL"
+                    
+                    MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
+                    
+                    declare -A images
+                    while IFS='=' read -r svc image; do
+                      images["$svc"]="$image"
+                    done < "$MAPFILE"
+                    
+                    # Use the pipeline variable for the loop to make it more maintainable
+                    IFS=',' read -r -a services <<< "$(microservice_list)"
+                    for svc in "${services[@]}"; do
+                      IMAGE="${images[$svc]}"
+                      APP_NAME="${PREFIX}-${svc}"
+                    
+                      # --- CORRECTED LOGIC STARTS HERE ---
+                    
+                      # 1. First, determine and apply all application settings.
+                      echo "Preparing and applying application settings for ${APP_NAME}..."
+                      if [ "$svc" == "genai-service" ]; then
+                        DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:5432/${PG_DB}"
+                        SETTINGS=(
+                          "DATABASE_URL=${DATABASE_URL}"
+                          "GEMINI_API_KEY=${GEMINI_API_KEY}"
+                          "GENAI_MODEL=gemini-1.5-flash"
+                        )
                       else
-                        echo "Health check failed for ${APP_NAME} (Attempt ${i}/${MAX_ATTEMPTS}). Status: ${STATUS_CODE}. Retrying..."
-                        sleep $SLEEP_SECONDS
+                        JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
+                        SETTINGS=(
+                          "SPRING_DATASOURCE_URL=$JDBC_URL"
+                          "SPRING_DATASOURCE_USERNAME=$PG_USER"
+                          "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
+                        )
+                        if [[ "$svc" == "user-service" || "$svc" == "api-gateway" ]]; then
+                          echo "Adding Jwt secret for $svc"
+                          SETTINGS+=("JWT_SECRET=$JWT_SECRET")
+                        fi
+                    
+                        if [ "$svc" == "eureka-server" ]; then
+                          SETTINGS+=(
+                            "EUREKA_CLIENT_REGISTERWITHEUREKA=false"
+                            "EUREKA_CLIENT_FETCHREGISTRY=false"
+                          )
+                        else
+                          SETTINGS+=(
+                            "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=$EUREKA_URL"
+                          )
+                        fi
                       fi
+                    
+                      az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings "${SETTINGS[@]}"
+                    
+                      # 2. Second, set the container image. The app will restart with the correct settings.
+                      echo "Setting container for $APP_NAME -> $IMAGE"
+                      az webapp config container set \
+                        --name "$APP_NAME" \
+                        --resource-group "$RG" \
+                        --docker-custom-image-name "$IMAGE" \
+                        --docker-registry-server-url "https://${ACR_LOGIN}" \
+                        --docker-registry-server-user "$ACR_USER" \
+                        --docker-registry-server-password "$ACR_PASS"
+                    
+                      # 3. Third, perform the health check now that the app has everything it needs to start.
+                      echo "Health checking ${APP_NAME}..."
+                      URL="https://${APP_NAME}.azurewebsites.net"
+                      HEALTH_ENDPOINT=""
+                    
+                      if [ "$svc" == "genai-service" ]; then
+                        HEALTH_ENDPOINT="/health"
+                      else
+                        HEALTH_ENDPOINT="/actuator/health"
+                      fi
+                    
+                      FULL_URL="${URL}${HEALTH_ENDPOINT}"
+                      MAX_ATTEMPTS=40
+                      SLEEP_SECONDS=15
+                      SUCCESS=false
+                    
+                      echo "Polling health endpoint: ${FULL_URL}"
+                    
+                      for (( i=1; i<=$MAX_ATTEMPTS; i++ )); do
+                        # Increased timeout to 20 seconds for safer startup
+                        STATUS_CODE=$(curl --max-time 20 -s -o /dev/null -w "%{http_code}" "${FULL_URL}")
+                        if [ "$STATUS_CODE" == "200" ]; then
+                          echo "Health check successful for ${APP_NAME} (Attempt ${i}/${MAX_ATTEMPTS})."
+                          SUCCESS=true
+                          break
+                        else
+                          echo "Health check failed for ${APP_NAME} (Attempt ${i}/${MAX_ATTEMPTS}). Status: ${STATUS_CODE}. Retrying..."
+                          sleep $SLEEP_SECONDS
+                        fi
+                      done
+                    
+                      if [ "$SUCCESS" != true ]; then
+                        echo "Error: Health check for ${APP_NAME} failed after ${MAX_ATTEMPTS} attempts."
+                        exit 1
+                      fi
+                    
+                      echo "Successfully deployed container to $APP_NAME"
                     done
-
-                    if [ "$SUCCESS" != true ]; then
-                      echo "Error: Health check for ${APP_NAME} failed after ${MAX_ATTEMPTS} attempts."
-                      exit 1
-                    fi
-
-                    # Conditional App Settings
-                    if [ "$svc" == "genai-service" ]; then
-                      DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:5432/${PG_DB}"
-                      SETTINGS=(
-                        "DATABASE_URL=${DATABASE_URL}"
-                        "GEMINI_API_KEY=${GEMINI_API_KEY}"
-                        "GENAI_MODEL=gemini-1.5-flash"
-                      )
-                    else
-                      JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
-                      SETTINGS=(
-                        "SPRING_DATASOURCE_URL=$JDBC_URL"
-                        "SPRING_DATASOURCE_USERNAME=$PG_USER"
-                        "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
-                      )
-                      if [[ "$svc" == "user-service" || "$svc" == "api-gateway" ]]; then
-                        echo "Adding Jwt secret for $svc"
-                        SETTINGS+=("JWT_SECRET=$JWT_SECRET")
-                      fi
-
-                      if [ "$svc" == "eureka-server" ]; then
-                        SETTINGS+=(
-                          "EUREKA_CLIENT_REGISTERWITHEUREKA=false"
-                          "EUREKA_CLIENT_FETCHREGISTRY=false"
-                        )
-                      else
-                        SETTINGS+=(
-                          "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=$EUREKA_URL"
-                        )
-                      fi
-                    fi
-                    echo "Applying all application settings for $APP_NAME..."
-                    az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings "${SETTINGS[@]}"
-
-                    az webapp restart --name "$APP_NAME" --resource-group "$RG"
-                    echo "Deployed container to $APP_NAME"
-                  done
-
             - task: Bash@3
               displayName: 'List deployed web app URLs'
               inputs:
