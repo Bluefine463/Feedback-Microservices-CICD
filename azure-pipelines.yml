@@ -181,7 +181,9 @@ stages:
 
   - stage: Deploy
     displayName: 'Deploy containers to WebApps'
-    dependsOn: Build
+    dependsOn:
+      - Build
+      - Infra
     jobs:
         - job: DeployJob
           displayName: 'Set container images and env vars on WebApps'
