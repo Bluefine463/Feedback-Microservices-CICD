@@ -46,25 +46,26 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
-                echo "Switch to infra folder..."
                 cd infrastructure
-                
+
                 echo "terraform init"
                 terraform init -input=false -upgrade
-                
+
                 NAME_PREFIX="build${BUILD_BUILDID}"
                 echo "Using name_prefix=${NAME_PREFIX}"
-                
+
                 MS_LIST_STR="$(microservice_list)"
                 TF_LIST_VAR="[\"${MS_LIST_STR//,/\",\"}\"]"
                 echo "Formatted microservice list for Terraform: ${TF_LIST_VAR}"
-                
-                echo "terraform plan -out=tfplan -var='location=$(location)' -var='name_prefix=${NAME_PREFIX}' -var='microservices=${TF_LIST_VAR}' -var='build_id=${BUILD_BUILDID}'"
-                terraform plan -input=false -out=tfplan -var="location=$(location)" -var="name_prefix=${NAME_PREFIX}" -var="microservices=${TF_LIST_VAR}" -var="build_id=${BUILD_BUILDID}"
-                
-                echo "terraform apply"
+
+                terraform plan -input=false -out=tfplan \
+                  -var="location=$(location)" \
+                  -var="name_prefix=${NAME_PREFIX}" \
+                  -var="microservices=${TF_LIST_VAR}" \
+                  -var="build_id=${BUILD_BUILDID}"
+
                 terraform apply -input=false tfplan
-                
+
                 PREFIX=$(terraform output -raw name_prefix)
                 RG=$(terraform output -raw resource_group_name)
                 ACR_NAME=$(terraform output -raw acr_name)
@@ -73,12 +74,7 @@ stages:
                 PG_DB=$(terraform output -raw postgres_database_name)
                 PG_ADMIN=$(terraform output -raw postgres_admin_username)
                 PG_PASS=$(terraform output -raw postgres_admin_password)
-                
-                echo "Prefix: $PREFIX"
-                echo "RG: $RG"
-                echo "ACR: $ACR_NAME ($ACR_LOGIN)"
-                echo "PG: $PG_FQDN / DB: $PG_DB"
-                
+
                 echo "##vso[task.setvariable variable=TF_PREFIX;isOutput=true]$PREFIX"
                 echo "##vso[task.setvariable variable=TF_RG;isOutput=true]$RG"
                 echo "##vso[task.setvariable variable=TF_ACR_NAME;isOutput=true]$ACR_NAME"
@@ -110,38 +106,18 @@ stages:
           - checkout: self
             persistCredentials: true
 
-#          - task: Maven@3
-#            displayName: 'Build all microservices with Maven'
-#            inputs:
-#              mavenPomFile: 'pom.xml'
-#              goals: 'clean package -DskipTests'
-#              options: '-T 1C'
-#              javaHomeOption: 'JDKVersion'
-#              jdkVersionOption: '1.17'
-#              mavenOptions: '-Xmx1024m'
-#          # --- ADD THIS NEW SCRIPT-BASED TASK -----
           - task: Bash@3
             displayName: 'Build all Java microservices with Maven'
             inputs:
               targetType: 'inline'
               script: |
                 set -euo pipefail
-
-                # Define the list of Java services to build
                 JAVA_SERVICES="api-gateway,eureka-server,feedback-service,user-service"
-
-                echo "Building Java services: $JAVA_SERVICES"
-
                 IFS=',' read -r -a services <<< "$JAVA_SERVICES"
                 for svc in "${services[@]}"; do
-                  SVC_PATH="services/$svc"
-                  echo "----------------------------------------------------"
-                  echo "Building Maven project in: ${SVC_PATH}"
-                  echo "----------------------------------------------------"
-
-                  # Run Maven on the pom.xml within each service's directory
-                  mvn -f "${SVC_PATH}/pom.xml" clean package -DskipTests
+                  mvn -f "services/$svc/pom.xml" clean package -DskipTests
                 done
+
           - task: AzureCLI@2
             displayName: 'Login to ACR and push images'
             inputs:
@@ -154,22 +130,14 @@ stages:
                 ACR_NAME=${TF_ACR_NAME}
                 ACR_LOGIN=${TF_ACR_LOGIN}
                 TAG=$(docker_tag)
-                echo "Prefix: $PREFIX  ACR: $ACR_NAME ($ACR_LOGIN)  Tag: $TAG"
-                
                 az acr login --name "$ACR_NAME"
-                
                 IFS=',' read -r -a services <<< "$(microservice_list)"
                 for svc in "${services[@]}"; do
-                  svc_trimmed="$(echo "$svc" | tr -d '[:space:]')"
-                  IMAGE="${ACR_LOGIN}/${PREFIX}-${svc_trimmed}:${TAG}"
-                  echo "Building and pushing Docker image for ${svc_trimmed} -> ${IMAGE}"
-                
-                  docker build --pull -t "${IMAGE}" "services/${svc_trimmed}"
+                  IMAGE="${ACR_LOGIN}/${PREFIX}-${svc}:${TAG}"
+                  docker build --pull -t "${IMAGE}" "services/${svc}"
                   docker push "${IMAGE}"
-                
-                  echo "${svc_trimmed}=${IMAGE}" >> $(Build.ArtifactStagingDirectory)/image-mapping.txt
+                  echo "${svc}=${IMAGE}" >> $(Build.ArtifactStagingDirectory)/image-mapping.txt
                 done
-                
                 cat $(Build.ArtifactStagingDirectory)/image-mapping.txt
 
           - task: PublishPipelineArtifact@1
@@ -177,7 +145,6 @@ stages:
             inputs:
               targetPath: '$(Build.ArtifactStagingDirectory)'
               artifact: 'image-mapping'
-              publishLocation: 'pipeline'
 
   - stage: Deploy
     displayName: 'Deploy containers to WebApps'
@@ -185,169 +152,138 @@ stages:
       - Build
       - Infra
     jobs:
-        - job: DeployJob
-          displayName: 'Set container images and env vars on WebApps'
-          pool:
-            vmImage: 'ubuntu-latest'
-          variables:
-            - group: 'MyWebApp-KeyVault-Secrets'
-            - name: TF_PREFIX
-              value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
-            - name: TF_RG
-              value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG'] ]
-            - name: TF_ACR_NAME
-              value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_NAME'] ]
-            - name: TF_ACR_LOGIN
-              value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN'] ]
-            - name: TF_PG_FQDN
-              value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN'] ]
-            - name: TF_PG_DB
-              value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB'] ]
-            - name: TF_PG_ADMIN
-              value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN'] ]
-            - name: TF_PG_PASS
-              value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS'] ]
+      - job: DeployJob
+        displayName: 'Set container images and env vars on WebApps'
+        pool:
+          vmImage: 'ubuntu-latest'
+        variables:
+          - group: 'MyWebApp-KeyVault-Secrets'
+          - name: TF_PREFIX
+            value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
+          - name: TF_RG
+            value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_RG'] ]
+          - name: TF_ACR_NAME
+            value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_NAME'] ]
+          - name: TF_ACR_LOGIN
+            value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_ACR_LOGIN'] ]
+          - name: TF_PG_FQDN
+            value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_FQDN'] ]
+          - name: TF_PG_DB
+            value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_DB'] ]
+          - name: TF_PG_ADMIN
+            value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_ADMIN'] ]
+          - name: TF_PG_PASS
+            value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PG_PASS'] ]
 
-          steps:
-            - task: DownloadPipelineArtifact@2
-              displayName: 'Download image mapping'
-              inputs:
-                buildType: 'current'
-                artifact: 'image-mapping'
-                targetPath: '$(Pipeline.Workspace)/image-mapping'
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download image mapping'
+            inputs:
+              buildType: 'current'
+              artifact: 'image-mapping'
+              targetPath: '$(Pipeline.Workspace)/image-mapping'
 
-            - task: AzureCLI@2
-              displayName: 'Update webapps with container images and app settings'
-              inputs:
-                azureSubscription: $(azureSubscription)
-                scriptType: bash
-                scriptLocation: inlineScript
-                inlineScript: |
-                    set -euo pipefail
-                    PREFIX=${TF_PREFIX}
-                    RG=${TF_RG}
-                    ACR_NAME=${TF_ACR_NAME}
-                    ACR_LOGIN=${TF_ACR_LOGIN}
-                    PG_HOST=${TF_PG_FQDN}
-                    PG_DB=${TF_PG_DB}
-                    PG_USER=${TF_PG_ADMIN}
-                    PG_PASS=${TF_PG_PASS}
-                    JWT_SECRET=${JWT-SECRET}
-                    GEMINI_API_KEY=${GEMINI-API-KEY}
-                    
-                    echo "Fetching ACR credentials..."
-                    ACR_USER=$(az acr credential show -n "$ACR_NAME" --query "username" -o tsv)
-                    ACR_PASS=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
-                    
-                    EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
-                    echo "Eureka Server URL will be: $EUREKA_URL"
-                    
-                    MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
-                    
-                    declare -A images
-                    while IFS='=' read -r svc image; do
-                      images["$svc"]="$image"
-                    done < "$MAPFILE"
-                    
-                    # Use the pipeline variable for the loop to make it more maintainable
-                    IFS=',' read -r -a services <<< "$(microservice_list)"
-                    for svc in "${services[@]}"; do
-                      IMAGE="${images[$svc]}"
-                      APP_NAME="${PREFIX}-${svc}"
-                    
-                      # --- CORRECTED LOGIC STARTS HERE ---
-                    
-                      # 1. First, determine and apply all application settings.
-                      echo "Preparing and applying application settings for ${APP_NAME}..."
-                      if [ "$svc" == "genai-service" ]; then
-                        DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:5432/${PG_DB}"
-                        SETTINGS=(
-                          "DATABASE_URL=${DATABASE_URL}"
-                          "GEMINI_API_KEY=${GEMINI_API_KEY}"
-                          "GENAI_MODEL=gemini-1.5-flash"
-                        )
-                      else
-                        JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
-                        SETTINGS=(
-                          "SPRING_DATASOURCE_URL=$JDBC_URL"
-                          "SPRING_DATASOURCE_USERNAME=$PG_USER"
-                          "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
-                        )
-                        if [[ "$svc" == "user-service" || "$svc" == "api-gateway" ]]; then
-                          echo "Adding Jwt secret for $svc"
-                          SETTINGS+=("JWT_SECRET=$JWT_SECRET")
-                        fi
-                    
-                        if [ "$svc" == "eureka-server" ]; then
-                          SETTINGS+=(
-                            "EUREKA_CLIENT_REGISTERWITHEUREKA=false"
-                            "EUREKA_CLIENT_FETCHREGISTRY=false"
-                          )
-                        else
-                          SETTINGS+=(
-                            "EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=$EUREKA_URL"
-                          )
-                        fi
-                      fi
-                    
-                      az webapp config appsettings set --resource-group "$RG" --name "$APP_NAME" --settings "${SETTINGS[@]}"
-                    
-                      # 2. Second, set the container image. The app will restart with the correct settings.
-                      echo "Setting container for $APP_NAME -> $IMAGE"
-                      az webapp config container set \
-                        --name "$APP_NAME" \
-                        --resource-group "$RG" \
-                        --docker-custom-image-name "$IMAGE" \
-                        --docker-registry-server-url "https://${ACR_LOGIN}" \
-                        --docker-registry-server-user "$ACR_USER" \
-                        --docker-registry-server-password "$ACR_PASS"
-                    
-                      # 3. Third, perform the health check now that the app has everything it needs to start.
-                      echo "Health checking ${APP_NAME}..."
-                      URL="https://${APP_NAME}.azurewebsites.net"
-                      HEALTH_ENDPOINT=""
-                    
-                      if [ "$svc" == "genai-service" ]; then
-                        HEALTH_ENDPOINT="/health"
-                      else
-                        HEALTH_ENDPOINT="/actuator/health"
-                      fi
-                    
-                      FULL_URL="${URL}${HEALTH_ENDPOINT}"
-                      MAX_ATTEMPTS=40
-                      SLEEP_SECONDS=15
-                      SUCCESS=false
-                    
-                      echo "Polling health endpoint: ${FULL_URL}"
-                    
-                      for (( i=1; i<=$MAX_ATTEMPTS; i++ )); do
-                        # Increased timeout to 20 seconds for safer startup
-                        STATUS_CODE=$(curl --max-time 20 -s -o /dev/null -w "%{http_code}" "${FULL_URL}")
-                        if [ "$STATUS_CODE" == "200" ]; then
-                          echo "Health check successful for ${APP_NAME} (Attempt ${i}/${MAX_ATTEMPTS})."
-                          SUCCESS=true
-                          break
-                        else
-                          echo "Health check failed for ${APP_NAME} (Attempt ${i}/${MAX_ATTEMPTS}). Status: ${STATUS_CODE}. Retrying..."
-                          sleep $SLEEP_SECONDS
-                        fi
-                      done
-                    
-                      if [ "$SUCCESS" != true ]; then
-                        echo "Error: Health check for ${APP_NAME} failed after ${MAX_ATTEMPTS} attempts."
-                        exit 1
-                      fi
-                    
-                      echo "Successfully deployed container to $APP_NAME"
-                    done
-            - task: Bash@3
-              displayName: 'List deployed web app URLs'
-              inputs:
-                targetType: 'inline'
-                script: |
-                  PREFIX=${TF_PREFIX}
-                  # Use the pipeline variable for the loop to make it more maintainable
-                  IFS=',' read -r -a services <<< "$(microservice_list)"
-                  for svc in "${services[@]}"; do
-                    echo "https://${PREFIX}-${svc}.azurewebsites.net"
+          - task: AzureCLI@2
+            displayName: 'Update webapps with container images and app settings'
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                PREFIX=${TF_PREFIX}
+                RG=${TF_RG}
+                ACR_NAME=${TF_ACR_NAME}
+                ACR_LOGIN=${TF_ACR_LOGIN}
+                PG_HOST=${TF_PG_FQDN}
+                PG_DB=${TF_PG_DB}
+                PG_USER=${TF_PG_ADMIN}
+                PG_PASS=${TF_PG_PASS}
+                JWT_SECRET=${JWT_SECRET}
+                GEMINI_API_KEY=${GEMINI_API_KEY}
+
+                echo "Fetching ACR credentials..."
+                ACR_USER=$(az acr credential show -n "$ACR_NAME" --query "username" -o tsv)
+                ACR_PASS=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
+
+                EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
+                MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
+
+                declare -A images
+                while IFS='=' read -r svc image; do
+                  images["$svc"]="$image"
+                done < "$MAPFILE"
+
+                IFS=',' read -r -a services <<< "$(microservice_list)"
+                for svc in "${services[@]}"; do
+                  IMAGE="${images[$svc]}"
+                  APP_NAME="${PREFIX}-${svc}"
+
+                  echo "Applying app settings for ${APP_NAME}..."
+                  if [ "$svc" == "genai-service" ]; then
+                    DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:5432/${PG_DB}"
+                    SETTINGS=(
+                      "DATABASE_URL=${DATABASE_URL}"
+                      "GEMINI_API_KEY=${GEMINI_API_KEY}"
+                      "GENAI_MODEL=gemini-1.5-flash"
+                    )
+                  else
+                    JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
+                    SETTINGS=(
+                      "SPRING_DATASOURCE_URL=$JDBC_URL"
+                      "SPRING_DATASOURCE_USERNAME=$PG_USER"
+                      "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
+                    )
+                    if [[ "$svc" == "user-service" || "$svc" == "api-gateway" ]]; then
+                      SETTINGS+=("JWT_SECRET=$JWT_SECRET")
+                    fi
+                    if [ "$svc" == "eureka-server" ]; then
+                      SETTINGS+=("EUREKA_CLIENT_REGISTERWITHEUREKA=false" "EUREKA_CLIENT_FETCHREGISTRY=false")
+                    else
+                      SETTINGS+=("EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=$EUREKA_URL")
+                    fi
+                  fi
+
+                  az webapp config appsettings set \
+                    --resource-group "$RG" \
+                    --name "$APP_NAME" \
+                    --settings "${SETTINGS[@]}"
+
+                  echo "Setting container for $APP_NAME -> $IMAGE"
+                  az webapp config container set \
+                    --name "$APP_NAME" \
+                    --resource-group "$RG" \
+                    --docker-custom-image-name "$IMAGE" \
+                    --docker-registry-server-url "https://${ACR_LOGIN}" \
+                    --docker-registry-server-user "$ACR_USER" \
+                    --docker-registry-server-password "$ACR_PASS"
+
+                  echo "Checking health of ${APP_NAME}..."
+                  URL="https://${APP_NAME}.azurewebsites.net"
+                  if [ "$svc" == "genai-service" ]; then
+                    HEALTH_ENDPOINT="/health"
+                  else
+                    HEALTH_ENDPOINT="/actuator/health"
+                  fi
+                  FULL_URL="${URL}${HEALTH_ENDPOINT}"
+                  for ((i=1;i<=40;i++)); do
+                    STATUS=$(curl --max-time 20 -s -o /dev/null -w "%{http_code}" "$FULL_URL")
+                    if [ "$STATUS" == "200" ]; then
+                      echo "✅ ${APP_NAME} healthy!"
+                      break
+                    fi
+                    echo "Waiting for ${APP_NAME} (${i}/40)..."
+                    sleep 15
                   done
+                done
+
+          - task: Bash@3
+            displayName: 'List deployed web app URLs'
+            inputs:
+              targetType: 'inline'
+              script: |
+                PREFIX=${TF_PREFIX}
+                IFS=',' read -r -a services <<< "$(microservice_list)"
+                for svc in "${services[@]}"; do
+                  echo "https://${PREFIX}-${svc}.azurewebsites.net"
+                done
