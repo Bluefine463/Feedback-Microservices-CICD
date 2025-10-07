@@ -31,17 +31,27 @@ resource "azurerm_linux_web_app" "apps" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
   service_plan_id     = azurerm_service_plan.asp.id
-  https_only          = true
 
   identity {
     type = "SystemAssigned"
   }
 
   site_config {
-    always_on        = true
-    #linux_fx_version = "DOCKER|${azurerm_container_registry.acr.login_server}/${local.prefix}-${each.key}:latest"
+    always_on = true
+
+    application_stack {
+      docker_image_name   = "${azurerm_container_registry.acr.login_server}/${local.prefix}-${each.key}:latest"
+      docker_registry_url = azurerm_container_registry.acr.login_server
+    }
+  }
+
+  app_settings = {
+    "DOCKER_REGISTRY_SERVER_URL"      = azurerm_container_registry.acr.login_server
+    "DOCKER_REGISTRY_SERVER_USERNAME" = azurerm_container_registry.acr.admin_username
+    "DOCKER_REGISTRY_SERVER_PASSWORD" = azurerm_container_registry.acr.admin_password
   }
 }
+
 
 resource "random_password" "pg_pass" {
   length           = 20
