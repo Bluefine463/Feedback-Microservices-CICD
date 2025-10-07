@@ -245,11 +245,50 @@ stages:
                   APP_NAME="${PREFIX}-${svc}"
                   echo "Setting container for $APP_NAME -> $IMAGE"
                 
+                  echo "Deploying $svc with image: $IMAGE"
+                
                   az webapp config container set \
                     --name "$APP_NAME" \
                     --resource-group "$RG" \
                     --docker-custom-image-name "$IMAGE" \
-                    --docker-registry-server-url "https://${ACR_LOGIN}"
+                    --docker-registry-server-url "https://${ACR_LOGIN}" \
+                    
+                  
+                  echo "Waiting for web app to become ready..."
+#                  sleep 15
+                  echo "Health checking ${APP_NAME}..."
+                  URL="https://${APP_NAME}.azurewebsites.net"
+                  HEALTH_ENDPOINT=""
+                              
+                  if [ "$svc" == "genai-service" ]; then
+                    HEALTH_ENDPOINT="/health"
+                  else
+                    HEALTH_ENDPOINT="/actuator/health"
+                  fi
+                              
+                  FULL_URL="${URL}${HEALTH_ENDPOINT}"
+                  MAX_ATTEMPTS=20
+                  SLEEP_SECONDS=10
+                  SUCCESS=false
+
+                  echo "Polling health endpoint: ${FULL_URL}"
+
+                  for (( i=1; i<=$MAX_ATTEMPTS; i++ )); do
+                    STATUS_CODE=$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" "${FULL_URL}")
+                    if [ "$STATUS_CODE" == "200" ]; then
+                      echo "Health check successful for ${APP_NAME} (Attempt ${i}/${MAX_ATTEMPTS})."
+                      SUCCESS=true
+                      break
+                    else
+                      echo "Health check failed for ${APP_NAME} (Attempt ${i}/${MAX_ATTEMPTS}). Status: ${STATUS_CODE}. Retrying..."
+                      sleep $SLEEP_SECONDS
+                    fi
+                  done
+                              
+                  if [ "$SUCCESS" != true ]; then
+                    echo "Error: Health check for ${APP_NAME} failed after ${MAX_ATTEMPTS} attempts."
+                    exit 1
+                  fi
                 
                   if [ "$svc" == "genai-service" ]; then
                     DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:5432/${PG_DB}"

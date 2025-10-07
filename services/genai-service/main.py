@@ -1,5 +1,5 @@
 # genai-service/main.py
-from fastapi import FastAPI, HTTPException, Path
+from fastapi import FastAPI, HTTPException, Path, status
 from pydantic import BaseModel
 from datetime import datetime, timedelta, date
 import os
@@ -54,6 +54,10 @@ def analyze_today():
     """
     req = AnalyzeRequest()
     return _run_analysis_for_request(req)
+
+@app.get("/health", status_code=status.HTTP_200_OK)
+def health_check():
+    return {"status": "healthy"}
 
 @app.post("/analyze", tags=["analysis"])
 def analyze(req: AnalyzeRequest):
