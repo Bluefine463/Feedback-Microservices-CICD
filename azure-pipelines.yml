@@ -151,13 +151,14 @@ stages:
     dependsOn:
       - Build
       - Infra
+    variables:
+      - group: 'MyWebApp-KeyVault-Secrets'
     jobs:
       - job: DeployJob
         displayName: 'Set container images and env vars on WebApps'
         pool:
           vmImage: 'ubuntu-latest'
         variables:
-          - group: 'MyWebApp-KeyVault-Secrets'
           - name: TF_PREFIX
             value: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
           - name: TF_RG
@@ -199,8 +200,12 @@ stages:
                 PG_DB=${TF_PG_DB}
                 PG_USER=${TF_PG_ADMIN}
                 PG_PASS=${TF_PG_PASS}
-                JWT_SECRET=${JWT_SECRET}
-                GEMINI_API_KEY=${GEMINI_API_KEY}
+                JWT_SECRET=${JWT_SECRET:-}
+                GEMINI_API_KEY=${GEMINI_API_KEY:-}
+                if [ -z "$JWT_SECRET" ] || [ -z "$GEMINI_API_KEY" ]; then
+                  echo "❌ Missing JWT_SECRET or GEMINI_API_KEY"
+                  exit 1
+                fi
 
                 echo "Fetching ACR credentials..."
                 ACR_USER=$(az acr credential show -n "$ACR_NAME" --query "username" -o tsv)
