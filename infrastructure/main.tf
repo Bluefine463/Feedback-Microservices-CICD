@@ -46,10 +46,13 @@ resource "azurerm_linux_web_app" "apps" {
   }
 
 
+  # app_settings = {
+  #   "DOCKER_REGISTRY_SERVER_URL"      = azurerm_container_registry.acr.login_server
+  #   # "DOCKER_REGISTRY_SERVER_USERNAME" = azurerm_container_registry.acr.admin_username
+  #   # "DOCKER_REGISTRY_SERVER_PASSWORD" = azurerm_container_registry.acr.admin_password
+  # }
   app_settings = {
-    "DOCKER_REGISTRY_SERVER_URL"      = azurerm_container_registry.acr.login_server
-    "DOCKER_REGISTRY_SERVER_USERNAME" = azurerm_container_registry.acr.admin_username
-    "DOCKER_REGISTRY_SERVER_PASSWORD" = azurerm_container_registry.acr.admin_password
+    "DOCKER_REGISTRY_SERVER_URL" = "https://${azurerm_container_registry.acr.login_server}"
   }
 }
 

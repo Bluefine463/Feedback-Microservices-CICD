@@ -208,9 +208,9 @@ stages:
                   exit 1
                 fi
 
-                echo "Fetching ACR credentials..."
-                ACR_USER=$(az acr credential show -n "$ACR_NAME" --query "username" -o tsv)
-                ACR_PASS=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
+#                echo "Fetching ACR credentials..."
+#                ACR_USER=$(az acr credential show -n "$ACR_NAME" --query "username" -o tsv)
+#                ACR_PASS=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
 
                 EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
                 MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
@@ -260,9 +260,9 @@ stages:
                     --name "$APP_NAME" \
                     --resource-group "$RG" \
                     --docker-custom-image-name "$IMAGE" \
-                    --docker-registry-server-url "https://${ACR_LOGIN}" \
-                    --docker-registry-server-user "$ACR_USER" \
-                    --docker-registry-server-password "$ACR_PASS"
+                    --docker-registry-server-url "https://${ACR_LOGIN}" 
+#                    --docker-registry-server-user "$ACR_USER" \
+#                    --docker-registry-server-password "$ACR_PASS"
 
                   echo "Checking health of ${APP_NAME}..."
                   URL="https://${APP_NAME}.azurewebsites.net"
