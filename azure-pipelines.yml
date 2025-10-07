@@ -200,10 +200,11 @@ stages:
                 PG_DB=${TF_PG_DB}
                 PG_USER=${TF_PG_ADMIN}
                 PG_PASS=${TF_PG_PASS}
-                JWT_SECRET=${JWT_SECRET:-}
-                GEMINI_API_KEY=${GEMINI_API_KEY:-}
+                eval JWT_SECRET=\${JWT-SECRET:-}
+                eval GEMINI_API_KEY=\${GEMINI-API-KEY:-}
                 if [ -z "$JWT_SECRET" ] || [ -z "$GEMINI_API_KEY" ]; then
                   echo "❌ Missing JWT_SECRET or GEMINI_API_KEY"
+                  echo "Debug: JWT-SECRET length: ${#JWT_SECRET:-0}, GEMINI-API-KEY length: ${#GEMINI_API_KEY:-0}"
                   exit 1
                 fi
 
