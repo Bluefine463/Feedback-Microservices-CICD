@@ -41,9 +41,10 @@ resource "azurerm_linux_web_app" "apps" {
 
     application_stack {
       docker_image_name   = "${azurerm_container_registry.acr.login_server}/${local.prefix}-${each.key}:latest"
-      docker_registry_url = azurerm_container_registry.acr.login_server
+      docker_registry_url = "https://${azurerm_container_registry.acr.login_server}"
     }
   }
+
 
   app_settings = {
     "DOCKER_REGISTRY_SERVER_URL"      = azurerm_container_registry.acr.login_server
