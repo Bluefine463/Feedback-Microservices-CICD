@@ -5,7 +5,7 @@ variables:
   azureServiceConnection: 'AzureServiceConnection'
   terraformVersion: '1.6.0'
   location: 'centralindia'
-  microservice_list: 'api-gateway,eureka-server,feedback-service,user-service,genai-service'
+  microservice_list: 'eureka-server,feedback-service,user-service,genai-service,api-gateway'
   docker_tag: '$(Build.BuildId)'
 
 stages:
