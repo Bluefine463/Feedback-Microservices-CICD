@@ -1,7 +1,6 @@
 locals {
   # Create a predictable prefix, e.g., "build35cheker"
-  # prefix = "build${var.build_id}${var.name_prefix}"
-  prefix = var.name_prefix
+  prefix = "build${var.build_id}${var.name_prefix}"
 }
 
 resource "azurerm_resource_group" "rg" {

@@ -61,7 +61,8 @@ stages:
                 terraform plan -input=false -out=tfplan \
                   -var="location=$(location)" \
                   -var="name_prefix=${NAME_PREFIX}" \
-                  -var="microservices=${TF_LIST_VAR}"
+                  -var="microservices=${TF_LIST_VAR}" \
+                  -var="build_id=${BUILD_BUILDID}"
 
                 terraform apply -input=false tfplan
 
