@@ -256,7 +256,8 @@ stages:
                     --name "$APP_NAME" \
                     --resource-group "$RG" \
                     --docker-custom-image-name "$IMAGE" \
-                    --docker-registry-server-url "https://${ACR_LOGIN}"
+                    --docker-registry-server-url "https://${ACR_LOGIN}" \
+                    --enable-managed-identity
 
                   echo "Checking health of ${APP_NAME}..."
                   URL="https://${APP_NAME}.azurewebsites.net"
