@@ -220,6 +220,9 @@ stages:
                   exit 1
                 fi
                 
+                PG_SERVER_NAME=$(echo $PG_HOST | cut -d'.' -f1)
+                PG_FULL_USER="${PG_USER}@${PG_SERVER_NAME}"
+                
                 EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
                 MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
 
@@ -235,17 +238,17 @@ stages:
 
                   echo "Applying app settings for ${APP_NAME}..."
                   if [ "$svc" == "genai-service" ]; then
-                    DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:5432/${PG_DB}"
+                    DATABASE_URL="postgresql://${PG_FULL_USER}:${PG_PASS}@${PG_HOST}:5432/${PG_DB}?sslmode=require"
                     SETTINGS=(
                       "DATABASE_URL=${DATABASE_URL}"
                       "GEMINI_API_KEY=${GEMINI_API_KEY}"
                       "GENAI_MODEL=gemini-1.5-flash"
                     )
                   else
-                    JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}"
+                    JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}?sslmode=require"
                     SETTINGS=(
                       "SPRING_DATASOURCE_URL=$JDBC_URL"
-                      "SPRING_DATASOURCE_USERNAME=$PG_USER"
+                      "SPRING_DATASOURCE_USERNAME=${PG_FULL_USER}"
                       "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
                     )
                     if [[ "$svc" == "user-service" || "$svc" == "api-gateway" ]]; then
