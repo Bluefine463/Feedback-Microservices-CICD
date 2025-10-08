@@ -220,9 +220,6 @@ stages:
                   exit 1
                 fi
                 
-                PG_SERVER_NAME=$(echo $PG_HOST | cut -d'.' -f1)
-                PG_FULL_USER="${PG_USER}@${PG_SERVER_NAME}"
-                
                 EUREKA_URL="http://${PREFIX}-eureka-server.azurewebsites.net/eureka/"
                 MAPFILE="$(Pipeline.Workspace)/image-mapping/image-mapping.txt"
 
@@ -238,7 +235,7 @@ stages:
 
                   echo "Applying app settings for ${APP_NAME}..."
                   if [ "$svc" == "genai-service" ]; then
-                    DATABASE_URL="postgresql://${PG_FULL_USER}:${PG_PASS}@${PG_HOST}:5432/${PG_DB}?sslmode=require"
+                    DATABASE_URL="postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:5432/${PG_DB}?sslmode=require"
                     SETTINGS=(
                       "DATABASE_URL=${DATABASE_URL}"
                       "GEMINI_API_KEY=${GEMINI_API_KEY}"
@@ -248,7 +245,7 @@ stages:
                     JDBC_URL="jdbc:postgresql://${PG_HOST}:5432/${PG_DB}?sslmode=require"
                     SETTINGS=(
                       "SPRING_DATASOURCE_URL=$JDBC_URL"
-                      "SPRING_DATASOURCE_USERNAME=${PG_FULL_USER}"
+                      "SPRING_DATASOURCE_USERNAME=$PG_USER"
                       "SPRING_DATASOURCE_PASSWORD=$PG_PASS"
                     )
                     if [[ "$svc" == "user-service" || "$svc" == "api-gateway" ]]; then
@@ -278,23 +275,7 @@ stages:
 
                   echo "⏳ Giving ${APP_NAME} some time to boot..."
                   sleep 120
-                  echo "Checking health of ${APP_NAME}..."
-                  URL="https://${APP_NAME}.azurewebsites.net"
-                  if [ "$svc" == "genai-service" ]; then
-                    HEALTH_ENDPOINT="/health"
-                  else
-                    HEALTH_ENDPOINT="/actuator/health"
-                  fi
-                  FULL_URL="${URL}${HEALTH_ENDPOINT}"
-                  for ((i=1;i<=40;i++)); do
-                    STATUS=$(curl --max-time 200 -s -o /dev/null -w "%{http_code}" "$FULL_URL")
-                    if [ "$STATUS" == "200" ]; then
-                      echo "✅ ${APP_NAME} healthy!!"
-                      break
-                    fi
-                    echo "Waiting for ${APP_NAME} (${i}/40)..."
-                    sleep 15
-                  done
+                  echo "Skipping health check cause of B1..."
                 done
 
           - task: Bash@3
