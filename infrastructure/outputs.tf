@@ -56,3 +56,13 @@ output "webapp_names" {
 output "webapp_image_patterns" {
   value = { for k, v in azurerm_linux_web_app.apps : k => "${azurerm_container_registry.acr.login_server}/${local.prefix}-${k}:<TAG>" }
 }
+
+output "acr_admin_username" {
+  value     = azurerm_container_registry.acr.admin_username
+  sensitive = true
+}
+
+output "acr_admin_password" {
+  value     = azurerm_container_registry.acr.admin_password
+  sensitive = true
+}
