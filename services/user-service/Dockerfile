@@ -9,10 +9,21 @@
 #compile in azure-pipeline ( incl a task there to compile parallely)
 
 
+# This Dockerfile is optimized for a pipeline build.
+# It expects the JAR file to have been created by a previous step (like the Maven task).
 FROM eclipse-temurin:17-jre-alpine
+
+# Set the working directory inside the container
 WORKDIR /app
-COPY app.jar app.jar
+
+# Copy the JAR from the build context's 'target' directory into the image
+# This works because the pipeline's Maven task creates the 'target' directory before this runs.
+COPY target/*.jar app.jar
+
+# Expose the port the application runs on
 EXPOSE 8080
+
+# The command to run the application when the container starts
 ENTRYPOINT ["java", "-jar", "app.jar"]
 
 # disable step 1 when running in pipeline since pipeline does the mvn clean package on

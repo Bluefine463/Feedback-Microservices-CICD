@@ -2,34 +2,41 @@ trigger:
   branches:
     include:
       - main
+  paths:
+    include:
+      - 'services/user-service/**' # Only trigger when user-service code changes
 
 variables:
   ACR_LOGIN_SERVER: 'build68build68.azurecr.io'
   IMAGE_NAME: 'build68build68-user-service'
   IMAGE_TAG: '$(Build.BuildId)'
+  MAVEN_PROJECT_PATH: 'services/user-service/pom.xml'
 
 stages:
   - stage: BuildAndPush
+    displayName: Build and Push User Service
     jobs:
       - job: BuildPush
         pool:
           vmImage: 'ubuntu-latest'
         steps:
-          - checkout: self
+          - task: Maven@3 # 👈 Step 1: Build the application with Maven first
+            displayName: 'Build Spring Boot JAR'
+            inputs:
+              mavenPomFile: '$(MAVEN_PROJECT_PATH)'
+              goals: 'clean package'
+              options: '-DskipTests' # Optional: Skip tests for faster pipeline builds
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: '1.17' # Ensure pipeline uses Java 17
+              publishJUnitResults: false
 
-          - script: |
-              echo "Copying pre-built JAR to Docker context..."
-              mkdir -p docker
-              cp services/user-service/target/*.jar docker/app.jar
-            displayName: 'Prepare Docker Context'
-
-          - task: Docker@2
-            displayName: 'Build and Push Docker Image'
+          - task: Docker@2 # 👈 Step 2: Now, build the image using the JAR
+            displayName: 'Build and Push Docker Image to ACR'
             inputs:
               command: buildAndPush
-              containerRegistry: 'build68build68-acr-serviceconn'  # 👈 your new Docker Registry connection
+              containerRegistry: 'build68build68-acr-serviceconn'
               repository: '$(IMAGE_NAME)'
               dockerfile: 'services/user-service/Dockerfile'
-              buildContext: 'docker'
+              buildContext: 'services/user-service' # 👈 Crucial change: The context is now the service directory
               tags: |
                 $(IMAGE_TAG)
