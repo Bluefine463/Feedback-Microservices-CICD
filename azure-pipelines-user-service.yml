@@ -4,7 +4,7 @@ trigger:
       - main
   paths:
     include:
-      - 'services/user-service/**' # Only trigger when user-service code changes
+      - 'services/user-service/**' # Only trigger when user-service code changes.
 
 variables:
   ACR_LOGIN_SERVER: 'build68build68.azurecr.io'

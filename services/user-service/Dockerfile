@@ -16,7 +16,7 @@ FROM eclipse-temurin:17-jre-alpine
 # Set the working directory inside the container
 WORKDIR /app
 
-# Copy the JAR from the build context's 'target' directory into the image
+# Copy the JAR from the build context's 'target' directory into the image.
 # This works because the pipeline's Maven task creates the 'target' directory before this runs.
 COPY target/*.jar app.jar
 
