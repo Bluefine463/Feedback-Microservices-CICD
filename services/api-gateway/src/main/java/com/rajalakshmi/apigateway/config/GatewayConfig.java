@@ -17,10 +17,10 @@ public class GatewayConfig {
         return builder.routes()
                 .route("user-service", r -> r.path("/users/**")
                         .filters(f -> f.filter(filter))
-                        .uri("lb://user-service"))
+                        .uri("https://build140build140-user-service.azurewebsites.net"))
                 .route("feedback-service", r -> r.path("/feedback/**")
                         .filters(f -> f.filter(filter))
-                        .uri("lb://feedback-service"))
+                        .uri("https://build140build140-feedback-service.azurewebsites.net"))
                 .build();
     }
 }

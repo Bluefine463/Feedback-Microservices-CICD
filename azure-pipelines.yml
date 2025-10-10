@@ -274,8 +274,8 @@ stages:
 
 
                   echo "⏳ Giving ${APP_NAME} some time to boot..."
-                  sleep 10
-                  echo " health check..."
+                  sleep 5
+                  echo " health check complete..."
                 done
 
           - task: Bash@3

@@ -15,6 +15,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.security.Key;
+import java.util.Base64;
 import java.util.List;
 
 @RefreshScope
@@ -46,7 +47,7 @@ public class AuthenticationFilter implements GatewayFilter {
         final String token = authHeader.substring(7);
 
         try {
-            byte[] keyBytes = secret.getBytes();
+            byte[] keyBytes = Base64.getDecoder().decode(secret);
             Key key = Keys.hmacShaKeyFor(keyBytes);
             Claims claims = Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
 
