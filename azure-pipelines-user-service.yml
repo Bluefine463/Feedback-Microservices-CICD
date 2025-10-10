@@ -1,0 +1,48 @@
+trigger:
+  branches:
+    include:
+      - main   # build only on main branch
+
+variables:
+  # Azure Container Registry name
+  ACR_NAME: 'build68build68'
+  IMAGE_NAME: 'build68build68-user-service'
+  IMAGE_TAG: '$(Build.BuildId)'
+
+stages:
+  - stage: BuildAndPush
+    displayName: 'Build and Push Docker Image'
+    jobs:
+      - job: BuildPush
+        displayName: 'Build Docker Image and Push to ACR'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+
+          # 1. Checkout code
+          - task: Checkout@1
+
+          # 2. Copy the pre-built JAR into Docker context
+          - script: |
+              echo "Copying pre-built JAR to Docker context..."
+              mkdir -p docker
+              cp services/user-service/target/*.jar docker/app.jar
+            displayName: 'Prepare Docker Context'
+
+          # 3. Login to ACR
+          - task: Docker@2
+            displayName: 'Login to ACR'
+            inputs:
+              command: login
+              containerRegistry: '$(ACR_NAME)'
+
+          # 4. Build and push Docker image
+          - task: Docker@2
+            displayName: 'Build and Push Docker Image'
+            inputs:
+              command: buildAndPush
+              containerRegistry: '$(ACR_NAME)'
+              repository: '$(IMAGE_NAME)'
+              dockerfile: 'services/user-service/Dockerfile'
+              buildContext: 'docker'
+              tags: '$(IMAGE_TAG)'
