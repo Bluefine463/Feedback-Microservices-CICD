@@ -50,8 +50,9 @@ stages:
 
                 echo "terraform init"
                 terraform init -input=false -upgrade
+                CUSTOM_BUILD_ID="333"
 
-                NAME_PREFIX="build${BUILD_BUILDID}"
+                NAME_PREFIX="build${CUSTOM_BUILD_ID}"
                 echo "Using name_prefix=${NAME_PREFIX}"
 
                 MS_LIST_STR="$(microservice_list)"
@@ -62,7 +63,7 @@ stages:
                   -var="location=$(location)" \
                   -var="name_prefix=${NAME_PREFIX}" \
                   -var="microservices=${TF_LIST_VAR}" \
-                  -var="build_id=${BUILD_BUILDID}"
+                  -var="build_id=${CUSTOM_BUILD_ID}"
 
                 terraform apply -input=false tfplan
 
