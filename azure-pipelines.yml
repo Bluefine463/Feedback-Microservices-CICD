@@ -274,7 +274,7 @@ stages:
 
 
                   echo "⏳ Giving ${APP_NAME} some time to boot..."
-                  sleep 20
+                  sleep 10
                   echo " health check..."
                 done
 
