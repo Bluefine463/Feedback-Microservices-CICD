@@ -1,7 +1,6 @@
 package com.rajalakshmi.feedbackservice.controller;
 
 
-import com.rajalakshmi.feedbackservice.exception.UnauthorizedException;
 import com.rajalakshmi.feedbackservice.model.Feedback;
 import com.rajalakshmi.feedbackservice.service.FeedbackService;
 import com.rajalakshmi.feedbackservice.service.FileStorageService;
@@ -11,8 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+
 
 import java.util.List;
 
@@ -26,35 +24,15 @@ public class FeedbackController {
     @Autowired
     private FileStorageService fileStorageService;
 
-    @PostMapping(consumes = {"multipart/form-data"})
-    public ResponseEntity<Feedback> createFeedback(@RequestParam("rating") int rating,
-                                                   @RequestParam("description") String description,
-                                                   @RequestHeader("X-User-Id") Long userId,
-                                                   @RequestParam(value = "image", required = false) MultipartFile image) {
-        Feedback feedback = new Feedback();
-        feedback.setUserId(userId);
-        feedback.setRating(rating);
-        feedback.setDescription(description);
 
-        if (image != null && !image.isEmpty()) {
-            String fileName = fileStorageService.storeFile(image);
-            String fileDownloadUri = ServletUriComponentsBuilder.fromCurrentContextPath()
-                    .path("/feedback/uploads/")
-                    .path(fileName)
-                    .toUriString();
-            feedback.setImageUrl(fileDownloadUri);
-        }
-
+    @PostMapping
+    public ResponseEntity<Feedback> createFeedback(@RequestBody Feedback feedback) {
         Feedback savedFeedback = feedbackService.saveFeedback(feedback);
         return new ResponseEntity<>(savedFeedback, HttpStatus.CREATED);
     }
 
     @GetMapping
-    public ResponseEntity<List<Feedback>> getAllFeedback(@RequestHeader("X-User-Role") String userRole) {
-        // Check if the user is an ADMIN
-        if (!"ADMIN".equalsIgnoreCase(userRole)) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN); // Return 403 if not an admin
-        }
+    public ResponseEntity<List<Feedback>> getAllFeedback() {
         List<Feedback> feedbackList = feedbackService.getAllFeedback();
         return new ResponseEntity<>(feedbackList, HttpStatus.OK);
     }
@@ -81,29 +59,22 @@ public class FeedbackController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Feedback> updateFeedback(@PathVariable Long id,
-                                                   @RequestBody Feedback feedbackDetails,
-                                                   @RequestHeader("X-User-Id") Long userId,
-                                                   @RequestHeader("X-User-Role") String userRole) {
+    public ResponseEntity<Feedback> updateFeedback(@PathVariable Long id, @RequestBody Feedback feedbackDetails) {
         try {
-            Feedback updatedFeedback = feedbackService.updateFeedback(id, feedbackDetails, userId, userRole);
+            // Note: The service logic might need to be simplified if it relied on userId/userRole
+            Feedback updatedFeedback = feedbackService.updateFeedback(id, feedbackDetails);
             return new ResponseEntity<>(updatedFeedback, HttpStatus.OK);
-        } catch (UnauthorizedException e) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         } catch (RuntimeException e) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<HttpStatus> deleteFeedback(@PathVariable Long id,
-                                                     @RequestHeader("X-User-Id") Long userId,
-                                                     @RequestHeader("X-User-Role") String userRole) {
+    public ResponseEntity<HttpStatus> deleteFeedback(@PathVariable Long id) {
         try {
-            feedbackService.deleteFeedback(id, userId, userRole);
+            // Note: The service logic might need to be simplified if it relied on userId/userRole
+            feedbackService.deleteFeedback(id);
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-        } catch (UnauthorizedException e) {
-            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         } catch (RuntimeException e) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }

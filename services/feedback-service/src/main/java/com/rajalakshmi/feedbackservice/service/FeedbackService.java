@@ -1,7 +1,6 @@
 package com.rajalakshmi.feedbackservice.service;
 
 
-import com.rajalakshmi.feedbackservice.exception.UnauthorizedException;
 import com.rajalakshmi.feedbackservice.model.Feedback;
 import com.rajalakshmi.feedbackservice.repository.FeedbackRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,26 +32,30 @@ public class FeedbackService {
         return feedbackRepository.findAllByUserId(userId);
     }
 
-    public Feedback updateFeedback(Long id, Feedback feedbackDetails, Long currentUserId, String currentUserRole) {
+    // UPDATED METHOD: Removed currentUserId and currentUserRole parameters and the security check
+    public Feedback updateFeedback(Long id, Feedback feedbackDetails) {
         Feedback feedback = feedbackRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Feedback not found"));
 
-        if (!Objects.equals(feedback.getUserId(), currentUserId) && !currentUserRole.equals("ADMIN")) {
-            throw new UnauthorizedException("User not authorized to update this feedback");
-        }
+        // The authorization check has been removed
+        // if (!Objects.equals(feedback.getUserId(), currentUserId) && !currentUserRole.equals("ADMIN")) {
+        //     throw new UnauthorizedException("User not authorized to update this feedback");
+        // }
 
         feedback.setRating(feedbackDetails.getRating());
         feedback.setDescription(feedbackDetails.getDescription());
         return feedbackRepository.save(feedback);
     }
 
-    public void deleteFeedback(Long id, Long currentUserId, String currentUserRole) {
+    // UPDATED METHOD: Removed currentUserId and currentUserRole parameters and the security check
+    public void deleteFeedback(Long id) {
         Feedback feedback = feedbackRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Feedback not found"));
 
-        if (!Objects.equals(feedback.getUserId(), currentUserId) && !currentUserRole.equals("ADMIN")) {
-            throw new UnauthorizedException("User not authorized to delete this feedback");
-        }
+        // The authorization check has been removed
+        // if (!Objects.equals(feedback.getUserId(), currentUserId) && !currentUserRole.equals("ADMIN")) {
+        //     throw new UnauthorizedException("User not authorized to delete this feedback");
+        // }
         feedbackRepository.delete(feedback);
     }
 }
