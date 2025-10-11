@@ -1,21 +1,17 @@
 # genai-service/db.py
 """
-Simple DB helper using psycopg2 + SQL to fetch feedback rows.
+Simple DB helper using psycopg (v3) + SQL to fetch feedback rows.
+Uses a connection pool for efficient, scalable connections.
 
 This module expects the DATABASE_URL env var in standard PostgreSQL URI form:
   postgresql://user:password@host:port/dbname
-
-Configurable environment variables:
- - DATABASE_URL
- - FEEDBACK_TABLE (default: feedback)
- - TIMESTAMP_COL (default: created_at)
- - TEXT_COL (optional, default tries several)
 """
 
-
 import os
-import psycopg
-from psycopg.rows import dict_row # <-- Import the row factory
+import atexit
+from psycopg import sql
+from psycopg_pool import ConnectionPool
+from psycopg.rows import dict_row
 from datetime import datetime, date, timedelta
 import logging
 
@@ -27,61 +23,43 @@ if not DATABASE_URL:
 
 FEEDBACK_TABLE = os.getenv("FEEDBACK_TABLE", "feedback")
 TIMESTAMP_COL = os.getenv("TIMESTAMP_COL", "created_at")
-TEXT_COL = os.getenv("TEXT_COL", "")  # optional, if empty we will try common names
 
-# A helper for safe queries
-def _connect():
-    if not DATABASE_URL:
-        raise RuntimeError("DATABASE_URL not configured")
-    conn = psycopg.connect(DATABASE_URL)
-    return conn
+# --- FIX 1: Implement a Database Connection Pool ---
+# This pool is created once when the application starts and reuses connections.
+# It's much more efficient than creating a new connection for every request.
+pool = None
+if DATABASE_URL:
+    # min_size=1 ensures at least one connection is ready.
+    # max_size=10 limits the number of concurrent connections to the database.
+    pool = ConnectionPool(conninfo=DATABASE_URL, min_size=1, max_size=10)
+    # Ensure the pool is closed gracefully when the application shuts down.
+    atexit.register(pool.close)
 
 def get_feedbacks_for_date(target_date: date):
     """
-    Return a list of rows (as dicts) for feedbacks where TIMESTAMP_COL is within target_date (local date).
-    Uses inclusive start (00:00:00) to exclusive next day start.
+    Return a list of rows (as dicts) for feedbacks where TIMESTAMP_COL is within target_date.
     """
+    if not pool:
+        raise RuntimeError("Database connection pool is not available. Check DATABASE_URL.")
+
     start = datetime.combine(target_date, datetime.min.time())
     end = start + timedelta(days=1)
-    conn = _connect()
-    try:
-        with conn.cursor(row_factory=dict_row) as cur:
-            text_col_fragment = _determine_text_column(cur)
-            sql = f"""
-                SELECT *
-                FROM {FEEDBACK_TABLE}
-                WHERE {TIMESTAMP_COL} >= %s AND {TIMESTAMP_COL} < %s
-                ORDER BY {TIMESTAMP_COL} ASC
-            """
-            # Because psycopg2.sql.Identifier.string is not safe here; to keep it simple and avoid
-            # introducing sql module complexity, we'll format table/col names with validation.
-            # Validate table and column names (only allow alphanumerics and underscore)
-            if not _is_safe_identifier(FEEDBACK_TABLE) or not _is_safe_identifier(TIMESTAMP_COL):
-                raise ValueError("FEEDBACK_TABLE or TIMESTAMP_COL contains unsafe characters")
 
-            sql = f"""
+    # A 'with' statement gets a connection from the pool and automatically returns it.
+    with pool.connection() as conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            # --- FIX 2: Prevent SQL Injection ---
+            # Use sql.Identifier to safely quote the table and column names.
+            # This is the correct way to prevent SQL injection with dynamic identifiers.
+            query = sql.SQL("""
                 SELECT *
-                FROM {FEEDBACK_TABLE}
-                WHERE {TIMESTAMP_COL} >= %s AND {TIMESTAMP_COL} < %s
-                ORDER BY {TIMESTAMP_COL} ASC
-            """
-            cur.execute(sql, (start, end))
+                FROM {table}
+                WHERE {timestamp_col} >= %s AND {timestamp_col} < %s
+                ORDER BY {timestamp_col} ASC
+            """).format(
+                table=sql.Identifier(FEEDBACK_TABLE),
+                timestamp_col=sql.Identifier(TIMESTAMP_COL)
+            )
+            cur.execute(query, (start, end))
             rows = cur.fetchall()
             return rows
-    finally:
-        conn.close()
-
-def _determine_text_column(cur):
-    """
-    Try to pick a text column automatically; not used in current implementation,
-    kept for future improvements.
-    """
-    if TEXT_COL and _is_safe_identifier(TEXT_COL):
-        return TEXT_COL
-    # otherwise we'll discover columns
-    return None
-
-def _is_safe_identifier(name: str) -> bool:
-    # allow only letters, digits, underscore, optionally dot
-    import re
-    return bool(re.match(r'^[A-Za-z0-9_]+$', name))

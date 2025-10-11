@@ -9,6 +9,7 @@
 fastapi==0.102.0          # Latest stable FastAPI supporting Pydantic 2.x
 uvicorn[standard]==0.23.1 # Latest stable Uvicorn
 pydantic>=2.5             # Required for Python 3.12
-google-generativeai==0.4.0
+google-generativeai>=0.5.0
 psycopg[binary]==3.1.18
+psycopg_pool
 python-dotenv==1.0.0      # Latest stable
