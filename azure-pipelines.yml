@@ -50,7 +50,7 @@ stages:
 
                 echo "terraform init"
                 terraform init -input=false -upgrade
-                CUSTOM_BUILD_ID="383"
+                CUSTOM_BUILD_ID="1000"
 
                 NAME_PREFIX="build${CUSTOM_BUILD_ID}"
                 echo "Using name_prefix=${NAME_PREFIX}"
@@ -352,7 +352,7 @@ stages:
                   echo "ZAP scan complete for $svc."
                 done
 
-              # We still want to see the reports even if high-risk issues are found
+              # We still want to see the reports even if high-risk issues are found.
               continueOnError: true
 
           - task: PublishPipelineArtifact@1
