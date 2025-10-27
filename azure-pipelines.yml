@@ -50,7 +50,7 @@ stages:
 
                 echo "terraform init"
                 terraform init -input=false -upgrade
-                CUSTOM_BUILD_ID="363"
+                CUSTOM_BUILD_ID="383"
 
                 NAME_PREFIX="build${CUSTOM_BUILD_ID}"
                 echo "Using name_prefix=${NAME_PREFIX}"
@@ -92,6 +92,8 @@ stages:
   - stage: Build
     displayName: 'Build images (Docker) & Push to ACR'
     dependsOn: Infra
+    variables:
+      - group: 'MyWebApp-KeyVault-Secrets'
     jobs:
       - job: BuildAndPush
         displayName: 'Build images (Docker) & Push to ACR'
@@ -114,16 +116,34 @@ stages:
             persistCredentials: true
 
           - task: Bash@3
-            displayName: 'Build all Java microservices with Maven'
+            displayName: 'Build & Scan all Java microservices with Maven/SonarCloud'
             inputs:
               targetType: 'inline'
               script: |
                 set -euo pipefail
+                  
+                # IMPORTANT: Update this to your actual SonarCloud organization name
+                SONAR_ORG="Feedback-Microservices-CICD" 
+                  
+                # We only scan the Java services, not the python 'genai-service'
                 JAVA_SERVICES="api-gateway,eureka-server,feedback-service,user-service"
+                  
                 IFS=',' read -r -a services <<< "$JAVA_SERVICES"
                 for svc in "${services[@]}"; do
-                  mvn -f "services/$svc/pom.xml" clean package -DskipTests
+                  echo "Building and Scanning $svc..."
+                  
+                  # This command now includes 'verify sonar:sonar' and the -D properties
+                  mvn -f "services/$svc/pom.xml" clean verify sonar:sonar \
+                    -Dsonar.projectKey="${SONAR_ORG}_${svc}" \
+                    -Dsonar.organization=$SONAR_ORG \
+                    -Dsonar.host.url=https://sonarcloud.io \
+                    -Dsonar.token=$(SONARTOKEN) \
+                    -DskipTests
                 done
+            env:
+              # This maps the secret variable from your Key Vault / Variable Group
+              # It MUST match the secret name you created (SONARTOKEN)
+              SONARTOKEN: $(SONARTOKEN)
 
           - task: AzureCLI@2
             displayName: 'Login to ACR and push images'

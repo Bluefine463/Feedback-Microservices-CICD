@@ -13,9 +13,9 @@ public class GatewayConfig {
     public RouteLocator routes(RouteLocatorBuilder builder) {
         return builder.routes()
                 .route("user-service", r -> r.path("/users/**")
-                        .uri("https://build363build363-user-service.azurewebsites.net"))
+                        .uri("https://build383build383-user-service.azurewebsites.net"))
                 .route("feedback-service", r -> r.path("/feedback/**")
-                        .uri("https://build363build363-feedback-service.azurewebsites.net"))
+                        .uri("https://build383build383-feedback-service.azurewebsites.net"))
                 .build();
     }
 }
