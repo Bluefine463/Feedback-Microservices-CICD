@@ -8,6 +8,7 @@ class FeedbackServiceApplicationTests {
 
     @Test
     void contextLoads() {
+        //Auto configured test. Tested Separately
     }
 
 }

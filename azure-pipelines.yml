@@ -309,3 +309,55 @@ stages:
                 for svc in "${services[@]}"; do
                   echo "https://${PREFIX}-${svc}.azurewebsites.net"
                 done
+  - stage: DASTScan
+    displayName: 'Security Scan (OWASP ZAP)'
+    dependsOn: Deploy  # Runs ONLY after Deploy is successful
+    variables:
+      TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
+    jobs:
+      - job: ZAPScan
+        displayName: 'Run OWASP ZAP Baseline Scan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: Bash@3
+            displayName: 'Run ZAP Baseline Scan on Services'
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -euo pipefail
+
+                # 1. Create a directory for our reports
+                mkdir -p $(System.DefaultWorkingDirectory)/DAST_Reports
+
+                SERVICES_TO_SCAN="feedback-service user-service"
+
+                for svc in $SERVICES_TO_SCAN; do
+                  TARGET_URL="https://$(TF_PREFIX)-${svc}.azurewebsites.net"
+                  # 2. Create a unique report name inside our new directory
+                  REPORT_FILE="DAST_Reports/${svc}_Security_Report.html"
+
+                  echo "------------------------------------------------"
+                  echo "Starting OWASP ZAP scan on: ${TARGET_URL}"
+                  echo "Report will be saved to: ${REPORT_FILE}"
+                  echo "------------------------------------------------"
+
+                  # 3. Run ZAP, saving the report to the specific path
+                  docker run --rm -v $(System.DefaultWorkingDirectory):/zap/wrk/:rw \
+                    owasp/zap2docker-stable zap-baseline.py \
+                    -t $TARGET_URL \
+                    -g gen.conf \
+                    -r $REPORT_FILE
+
+                  echo "ZAP scan complete for $svc."
+                done
+
+              # We still want to see the reports even if high-risk issues are found
+              continueOnError: true
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish ZAP Security Reports'
+            inputs:
+              # 4. Publish the entire directory
+              targetPath: '$(System.DefaultWorkingDirectory)/DAST_Reports'
+              artifactName: 'DAST-Security-Reports'
