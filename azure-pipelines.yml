@@ -123,7 +123,7 @@ stages:
                 set -euo pipefail
                   
                 # IMPORTANT: Update this to your actual SonarCloud organization name
-                SONAR_ORG="Feedback-Microservices-CICD" 
+                SONAR_ORG="feedback-microservices-cicd" 
                   
                 # We only scan the Java services, not the python 'genai-service'
                 JAVA_SERVICES="api-gateway,eureka-server,feedback-service,user-service"
