@@ -311,9 +311,11 @@ stages:
                 done
   - stage: DASTScan
     displayName: 'Security Scan (OWASP ZAP)'
-    dependsOn: Deploy  # Runs ONLY after Deploy is successful
+    dependsOn: # <-- FIX 1a: Updated dependency format
+      - Deploy
+      - Infra
     variables:
-      TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
+      TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ] # <-- FIX 1b: This now works
     jobs:
       - job: ZAPScan
         displayName: 'Run OWASP ZAP Baseline Scan'
@@ -327,14 +329,12 @@ stages:
               script: |
                 set -euo pipefail
 
-                # 1. Create a directory for our reports
                 mkdir -p $(System.DefaultWorkingDirectory)/DAST_Reports
-
                 SERVICES_TO_SCAN="feedback-service user-service"
 
                 for svc in $SERVICES_TO_SCAN; do
                   TARGET_URL="https://$(TF_PREFIX)-${svc}.azurewebsites.net"
-                  # 2. Create a unique report name inside our new directory
+                  # This path is relative to the agent, which is mapped to /zap/wrk
                   REPORT_FILE="DAST_Reports/${svc}_Security_Report.html"
 
                   echo "------------------------------------------------"
@@ -342,22 +342,19 @@ stages:
                   echo "Report will be saved to: ${REPORT_FILE}"
                   echo "------------------------------------------------"
 
-                  # 3. Run ZAP, saving the report to the specific path
+                  # FIX 2: Use new GHCR image and new zap.sh command
                   docker run --rm -v $(System.DefaultWorkingDirectory):/zap/wrk/:rw \
-                    owasp/zap2docker-stable zap-baseline.py \
+                    ghcr.io/zaproxy/zaproxy:stable zap.sh -cmd -baseline \
                     -t $TARGET_URL \
                     -g gen.conf \
-                    -r $REPORT_FILE
+                    -H $REPORT_FILE  # Use -H for HTML report
 
                   echo "ZAP scan complete for $svc."
                 done
-
-              # We still want to see the reports even if high-risk issues are found.
               continueOnError: true
 
           - task: PublishPipelineArtifact@1
             displayName: 'Publish ZAP Security Reports'
             inputs:
-              # 4. Publish the entire directory
               targetPath: '$(System.DefaultWorkingDirectory)/DAST_Reports'
               artifactName: 'DAST-Security-Reports'
