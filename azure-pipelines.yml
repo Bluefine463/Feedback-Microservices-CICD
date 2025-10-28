@@ -315,7 +315,7 @@ stages:
       - Deploy
       - Infra
     variables:
-      TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ] # <-- FIX 1b: This now works
+      TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ] # <-- FIX 1b: This now works.
     jobs:
       - job: ZAPScan
         displayName: 'Run OWASP ZAP Baseline Scan'
