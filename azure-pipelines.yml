@@ -346,12 +346,6 @@ stages:
                   docker run --rm -v $(System.DefaultWorkingDirectory):/zap/wrk/:rw \
                     ghcr.io/zaproxy/zaproxy:stable \
                     zap-baseline.py -t $TARGET_URL -r $REPORT_FILE -I
-#                  docker run --rm -v $(System.DefaultWorkingDirectory):/zap/wrk/:rw \
-#                    ghcr.io/zaproxy/zaproxy:stable zap.sh -cmd -baseline \
-#                    -t $TARGET_URL \
-#                    -g gen.conf \
-#                    -r $REPORT_FILE  # Use -H for HTML report
-
                   echo "ZAP scan complete for $svc."
                 done
               continueOnError: true
