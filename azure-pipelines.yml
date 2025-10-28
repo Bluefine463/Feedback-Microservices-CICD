@@ -347,7 +347,7 @@ stages:
                     ghcr.io/zaproxy/zaproxy:stable zap.sh -cmd -baseline \
                     -t $TARGET_URL \
                     -g gen.conf \
-                    -H $REPORT_FILE  # Use -H for HTML report
+                    -r $REPORT_FILE  # Use -H for HTML report
 
                   echo "ZAP scan complete for $svc."
                 done
