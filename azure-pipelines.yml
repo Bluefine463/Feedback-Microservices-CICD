@@ -141,7 +141,7 @@ stages:
                     -DskipTests
                 done
             env:
-              # This maps the secret variable from your Key Vault / Variable Group
+              # This maps the secret variable from your Key Vault / Variable Groupp
               # It MUST match the secret name you created (SONARTOKEN)
               SONARTOKEN: $(SONARTOKEN)
 
