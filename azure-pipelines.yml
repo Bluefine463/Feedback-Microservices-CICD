@@ -311,11 +311,11 @@ stages:
                 done
   - stage: DASTScan
     displayName: 'Security Scan (OWASP ZAP)'
-    dependsOn: # <-- FIX 1a: Updated dependency format
+    dependsOn:
       - Deploy
       - Infra
     variables:
-      TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ] # <-- FIX 1b: This now works.
+      TF_PREFIX: $[ stageDependencies.Infra.Terraform.outputs['setOutputs.TF_PREFIX'] ]
     jobs:
       - job: ZAPScan
         displayName: 'Run OWASP ZAP Baseline Scan'
@@ -330,25 +330,27 @@ stages:
                 set -euo pipefail
 
                 mkdir -p $(System.DefaultWorkingDirectory)/DAST_Reports
+                chmod -R 777 $(System.DefaultWorkingDirectory)/DAST_Reports
+
                 SERVICES_TO_SCAN="feedback-service user-service"
 
                 for svc in $SERVICES_TO_SCAN; do
                   TARGET_URL="https://$(TF_PREFIX)-${svc}.azurewebsites.net"
-                  # This path is relative to the agent, which is mapped to /zap/wrk
-                  REPORT_FILE="DAST_Reports/${svc}_Security_Report.html"
+                  REPORT_FILE="${svc}_Security_Report.html"
 
                   echo "------------------------------------------------"
                   echo "Starting OWASP ZAP scan on: ${TARGET_URL}"
                   echo "Report will be saved to: ${REPORT_FILE}"
                   echo "------------------------------------------------"
 
-                  # FIX 2: Use new GHCR image and new zap.sh command
-                  docker run --rm -v $(System.DefaultWorkingDirectory):/zap/wrk/:rw \
+                  docker run --rm \
+                    -v $(System.DefaultWorkingDirectory)/DAST_Reports:/zap/wrk/:rw \
                     ghcr.io/zaproxy/zaproxy:stable \
-                    zap-baseline.py -t $TARGET_URL -r $REPORT_FILE -I
+                    zap-baseline.py -t $TARGET_URL -r $REPORT_FILE
+
                   echo "ZAP scan complete for $svc."
                 done
-              continueOnError: true
+            continueOnError: true
 
           - task: PublishPipelineArtifact@1
             displayName: 'Publish ZAP Security Reports'
