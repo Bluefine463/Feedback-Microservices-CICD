@@ -1,0 +1,46 @@
+trigger: none  # manual trigger or pipeline trigger
+
+parameters:
+  - name: TF_PREFIX
+    displayName: 'Terraform Prefix (e.g., build1000)'
+    type: string
+    default: 'build1000'
+
+stages:
+  - stage: DASTScan
+    displayName: 'Security Scan (OWASP ZAP)'
+    jobs:
+      - job: ZAPScan
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: Bash@3
+            displayName: 'Run OWASP ZAP Baseline Scan'
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -euo pipefail
+
+                mkdir -p $(System.DefaultWorkingDirectory)/DAST_Reports
+                chmod -R 777 $(System.DefaultWorkingDirectory)/DAST_Reports
+
+                SERVICES_TO_SCAN="feedback-service user-service"
+                PREFIX=${{ parameters.TF_PREFIX }}
+
+                for svc in $SERVICES_TO_SCAN; do
+                  TARGET_URL="https://${PREFIX}-${svc}.azurewebsites.net"
+                  REPORT_FILE="${svc}_Security_Report.html"
+
+                  echo "Checking connectivity to $TARGET_URL"
+                  curl -v --max-time 30 $TARGET_URL || echo "⚠️ Could not reach $TARGET_URL"
+
+                  echo "Starting OWASP ZAP scan..."
+                  docker run --rm \
+                    -v $(System.DefaultWorkingDirectory)/DAST_Reports:/zap/wrk/:rw \
+                    ghcr.io/zaproxy/zaproxy:stable \
+                    zap-baseline.py -t $TARGET_URL -r $REPORT_FILE -m 10 || echo "⚠️ ZAP scan failed for ${svc}"
+                done
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)/DAST_Reports'
+              artifactName: 'DAST-Security-Reports'
