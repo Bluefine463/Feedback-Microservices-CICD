@@ -4,7 +4,7 @@ parameters:
   - name: TF_PREFIX
     displayName: 'Terraform Prefix (e.g., build1000)'
     type: string
-    default: 'build363'
+    default: 'build363build363'
 
 stages:
   - stage: DASTScan
